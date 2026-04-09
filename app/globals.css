@@ -117,6 +117,33 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ===== Landing page animations ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.9s cubic-bezier(0.25, 1, 0.5, 1), transform 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-d1 { transition-delay: 120ms; }
+.reveal-d2 { transition-delay: 240ms; }
+.reveal-d3 { transition-delay: 360ms; }
+
+.nav-blur {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.apple-card {
+  border-radius: 1.25rem;
+  overflow: hidden;
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.apple-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
