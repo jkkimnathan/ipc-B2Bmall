@@ -9,6 +9,80 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Inbox, FileText, UserPlus, Truck } from 'lucide-react'
 
+interface RecentActivity {
+  id: string
+  type: 'order' | 'rfq' | 'dealer'
+  title: string
+  sub: string
+  time: string
+  href: string
+}
+
+async function getRecentActivities(): Promise<RecentActivity[]> {
+  try {
+    const supabase = await createClient()
+    const activities: RecentActivity[] = []
+
+    const [orders, rfqs, dealers] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('id, order_no, status, total_amount, submitted_at, dealers(company_name)')
+        .order('submitted_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('quote_requests')
+        .select('id, rfq_no, title, status, submitted_at, dealers(company_name)')
+        .order('submitted_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('dealers')
+        .select('id, company_name, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ])
+
+    for (const o of orders.data ?? []) {
+      const dealer = o.dealers as unknown as { company_name: string } | null
+      activities.push({
+        id: `order-${o.id}`,
+        type: 'order',
+        title: `[발주] ${o.order_no}`,
+        sub: `${dealer?.company_name ?? ''} · ${(o.total_amount ?? 0).toLocaleString()}원`,
+        time: o.submitted_at,
+        href: `/admin/orders/${o.id}`,
+      })
+    }
+
+    for (const r of rfqs.data ?? []) {
+      const dealer = r.dealers as unknown as { company_name: string } | null
+      activities.push({
+        id: `rfq-${r.id}`,
+        type: 'rfq',
+        title: `[견적] ${r.rfq_no}`,
+        sub: `${dealer?.company_name ?? ''} · ${r.title}`,
+        time: r.submitted_at,
+        href: `/admin/quotes/${r.id}`,
+      })
+    }
+
+    for (const d of dealers.data ?? []) {
+      activities.push({
+        id: `dealer-${d.id}`,
+        type: 'dealer',
+        title: `[거래처] ${d.company_name}`,
+        sub: d.status === 'pending' ? '승인 대기' : d.status === 'active' ? '승인 완료' : '정지',
+        time: d.created_at,
+        href: `/admin/dealers/${d.id}`,
+      })
+    }
+
+    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    return activities.slice(0, 10)
+  } catch {
+    return []
+  }
+}
+
 // 대시보드 요약 데이터를 Supabase에서 가져오는 함수
 async function getDashboardStats() {
   try {
@@ -61,7 +135,10 @@ async function getDashboardStats() {
 }
 
 export default async function AdminDashboardPage() {
-  const stats = await getDashboardStats()
+  const [stats, activities] = await Promise.all([
+    getDashboardStats(),
+    getRecentActivities(),
+  ])
 
   // 요약 카드 데이터 정의
   const cards = [
@@ -131,9 +208,34 @@ export default async function AdminDashboardPage() {
       <div>
         <h2 className="mb-3 text-lg font-semibold text-zinc-900">최근 활동</h2>
         <Card>
-          <CardContent className="py-8 text-center text-sm text-zinc-400">
-            추후 구현 예정
-          </CardContent>
+          {activities.length === 0 ? (
+            <CardContent className="py-8 text-center text-sm text-zinc-400">
+              최근 활동이 없습니다.
+            </CardContent>
+          ) : (
+            <CardContent className="divide-y p-0">
+              {activities.map((a) => (
+                <Link
+                  key={a.id}
+                  href={a.href}
+                  className="flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-zinc-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`size-2 rounded-full ${
+                      a.type === 'order' ? 'bg-blue-500' : a.type === 'rfq' ? 'bg-orange-500' : 'bg-green-500'
+                    }`} />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{a.title}</p>
+                      <p className="text-xs text-zinc-500">{a.sub}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-zinc-400">
+                    {new Date(a.time).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </Link>
+              ))}
+            </CardContent>
+          )}
         </Card>
       </div>
     </div>
