@@ -36,7 +36,7 @@ export async function updateNotificationSettings(formData: FormData) {
   }
   updates.admin_notification_emails = (formData.get('admin_notification_emails') as string)?.trim() || null
   updates.sender_name = (formData.get('sender_name') as string)?.trim() || 'iPC Mall'
-  updates.sender_email = (formData.get('sender_email') as string)?.trim() || 'onboarding@resend.dev'
+  updates.sender_email = (formData.get('sender_email') as string)?.trim() || 'noreply@ipcb2bmall.com'
 
   // upsert
   const { error } = await supabase
