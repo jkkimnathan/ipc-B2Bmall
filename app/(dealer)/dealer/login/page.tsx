@@ -137,12 +137,12 @@ export default function DealerLoginPage() {
               </Link>
             </div>
             <div>
-              <a
-                href="mailto:nathan@intechn.com?subject=비밀번호 재설정 요청"
+              <Link
+                href="/dealer/forgot-password"
                 className="text-zinc-500 hover:underline"
               >
                 비밀번호를 잊으셨나요?
-              </a>
+              </Link>
             </div>
           </div>
         </CardContent>

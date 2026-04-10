@@ -21,7 +21,7 @@ function isAdminEmail(email: string | undefined | null): boolean {
 }
 
 // 거래처 공개 페이지 (세션 불필요)
-const DEALER_PUBLIC_PATHS = ['/dealer/login', '/dealer/signup', '/dealer/signup/complete']
+const DEALER_PUBLIC_PATHS = ['/dealer/login', '/dealer/signup', '/dealer/signup/complete', '/dealer/forgot-password', '/dealer/reset-password']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
