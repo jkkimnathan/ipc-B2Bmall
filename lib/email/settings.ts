@@ -32,7 +32,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
     admin_new_rfq: true,
     admin_notification_emails: null,
     sender_name: 'iPC Mall',
-    sender_email: 'noreply@intechonline.kr',
+    sender_email: 'onboarding@resend.dev',
     updated_at: new Date().toISOString(),
   }
 }
