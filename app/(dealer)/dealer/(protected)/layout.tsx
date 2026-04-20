@@ -1,9 +1,14 @@
 /**
- * 거래처 보호 레이아웃
+ * 거래처 보호 레이아웃 (리뉴얼 · 보수적 방향)
  *
- * 사이드바 + 헤더가 포함된 거래처 전용 레이아웃.
- * requireDealer()로 인증을 확인하여 비로그인/비활성/비거래처 접근을 차단.
- * /dealer/login, /dealer/signup은 이 레이아웃 바깥에 있어 영향받지 않는다.
+ * ───────────────────────────────────────────────────────
+ *  ▸ 적용 경로 : app/(dealer)/dealer/(protected)/layout.tsx
+ *  ▸ 원본 대비 변경점
+ *    - 배경을 bg-zinc-50 → bg-slate-50 으로 교체 (톤 통일)
+ *    - 메인 영역에 max-w + 일관된 패딩/여백 적용
+ *    - 헤더 60px · 사이드바 240px 기준은 유지
+ *    - requireDealer · Supabase 호출은 전혀 건드리지 않음
+ * ───────────────────────────────────────────────────────
  */
 import type { Metadata } from 'next'
 import { requireDealer } from '@/lib/auth/dealer'
@@ -28,7 +33,7 @@ export default async function DealerProtectedLayout({
     .eq('dealer_id', session.dealer.id)
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <DealerHeader
         companyName={session.dealer.company_name}
         userName={session.dealerUser.name}
@@ -37,8 +42,10 @@ export default async function DealerProtectedLayout({
       />
       <DealerSidebar />
       {/* 메인 콘텐츠: 헤더(60px) 아래, 사이드바(240px) 오른쪽 */}
-      <main className="ml-[240px] mt-[60px] p-6">
-        {children}
+      <main className="ml-[240px] mt-[60px] min-h-[calc(100vh-60px)]">
+        <div className="mx-auto w-full max-w-[1320px] px-8 py-8">
+          {children}
+        </div>
       </main>
     </div>
   )
