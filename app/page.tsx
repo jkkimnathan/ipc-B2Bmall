@@ -120,37 +120,41 @@ export default function LandingPage() {
             </div>
 
             {/* iPC Pro */}
-            <div className="apple-card bg-[#f5f5f7] reveal">
-              <div className="flex items-center justify-center p-6 pt-8">
-                <Image src="/landing/pro_01.png" alt="iPC Pro" width={500} height={375} className="rounded-xl w-full object-cover aspect-[4/3]" />
-              </div>
-              <div className="p-10 pt-4">
-                <h3 className="text-2xl font-bold tracking-tight mb-3">iPC Pro</h3>
-                <p className="text-[#86868b] text-[15px] leading-relaxed mb-6">
-                  Adobe, CAD, 3D 모델링, 웹/앱 개발 등의 작업을 한계 없이 처리합니다.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {['INTEL i5 이상', '최고 성능과 안정성', 'NVIDIA GPU 탑재', 'AhnLab 보안솔루션', 'Microsoft Windows Pro', 'SMART CAD, EZPDF'].map((t) => (
-                    <span key={t} className="bg-white rounded-full px-3 py-1.5 text-xs text-[#1d1d1f] font-medium shadow-sm">{t}</span>
-                  ))}
+            <div className="apple-card bg-[#f5f5f7] reveal md:col-span-2">
+              <div className="grid md:grid-cols-2 items-center">
+                <div className="p-10 md:p-14">
+                  <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">iPC Pro</h3>
+                  <p className="text-[#86868b] leading-relaxed mb-8">
+                    Adobe, CAD, 3D 모델링, 웹/앱 개발 등의 작업을 한계 없이 처리합니다.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {['INTEL i5 이상', '최고 성능과 안정성', 'NVIDIA GPU 탑재', 'AhnLab 보안솔루션', 'Microsoft Windows Pro', 'SMART CAD, EZPDF'].map((t) => (
+                      <span key={t} className="bg-white rounded-full px-4 py-1.5 text-xs text-[#1d1d1f] font-medium shadow-sm">{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-center p-8">
+                  <Image src="/landing/pro_01.png" alt="iPC Pro" width={600} height={400} className="rounded-2xl w-full object-cover" />
                 </div>
               </div>
             </div>
 
             {/* iPC Master */}
-            <div className="apple-card bg-[#f5f5f7] reveal reveal-d1">
-              <div className="flex items-center justify-center p-6 pt-8">
-                <Image src="/landing/master_01.png" alt="iPC Master" width={500} height={375} className="rounded-xl w-full object-cover aspect-[4/3]" />
-              </div>
-              <div className="p-10 pt-4">
-                <h3 className="text-2xl font-bold tracking-tight mb-3">iPC Master</h3>
-                <p className="text-[#86868b] text-[15px] leading-relaxed mb-6">
-                  AI 딥러닝과 복잡한 3D 시뮬레이션, 이제 기다림 없이 완료하십시오.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {['INTEL 최고성능 CPU', 'RTX 50 Series GPU', '연구 / 제작부터 분석까지'].map((t) => (
-                    <span key={t} className="bg-white rounded-full px-3 py-1.5 text-xs text-[#1d1d1f] font-medium shadow-sm">{t}</span>
-                  ))}
+            <div className="apple-card bg-[#f5f5f7] reveal md:col-span-2">
+              <div className="grid md:grid-cols-2 items-center">
+                <div className="p-10 md:p-14">
+                  <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">iPC Master</h3>
+                  <p className="text-[#86868b] leading-relaxed mb-8">
+                    AI 딥러닝과 복잡한 3D 시뮬레이션, 이제 기다림 없이 완료하십시오.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {['INTEL 최고성능 CPU', 'RTX 50 Series GPU', '연구 / 제작부터 분석까지'].map((t) => (
+                      <span key={t} className="bg-white rounded-full px-4 py-1.5 text-xs text-[#1d1d1f] font-medium shadow-sm">{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-center p-8">
+                  <Image src="/landing/master_01.png" alt="iPC Master" width={600} height={400} className="rounded-2xl w-full object-cover" />
                 </div>
               </div>
             </div>
@@ -171,9 +175,13 @@ export default function LandingPage() {
           {/* Feature 1 */}
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center mb-28 md:mb-36">
             <div className="reveal">
-              <div className="rounded-3xl w-full aspect-[680/480] bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center shadow-lg">
-                <Wallet className="size-24 text-[#0071e3]/30" />
-              </div>
+              <Image
+                src="/landing/cost-saving.jpg"
+                alt="총소유비용 절감"
+                width={680}
+                height={480}
+                className="rounded-3xl w-full h-auto object-cover shadow-lg"
+              />
             </div>
             <div className="reveal reveal-d1">
               <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mb-6">
@@ -216,9 +224,13 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="reveal reveal-d1 order-1 lg:order-2">
-              <div className="rounded-3xl w-full aspect-[680/480] bg-gradient-to-br from-green-100 to-green-50 flex items-center justify-center shadow-lg">
-                <ShieldCheck className="size-24 text-emerald-500/30" />
-              </div>
+              <Image
+                src="/landing/official-auth.jpg"
+                alt="라이선스 관리 및 보안"
+                width={680}
+                height={480}
+                className="rounded-3xl w-full h-auto object-cover shadow-lg"
+              />
             </div>
           </div>
         </div>
@@ -236,72 +248,48 @@ export default function LandingPage() {
 
           {/* Logo Cloud */}
           <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16 mb-20 reveal">
-            {['스텔라랩스', '루미너스', '플로우캔버스', '넥스트웨어', '코어브릿지', '인사이트플러스'].map((n) => (
+            {['숭실대학교', '로떼 i-cafe', 'SBS컴퓨터아카데미', '좋은책신사고', '해솔데이타', '유앤아이소프트'].map((n) => (
               <span key={n} className="text-[#c4c4c4] text-xl font-bold tracking-tight">{n}</span>
             ))}
           </div>
 
           {/* Testimonial Cards */}
           <div className="grid md:grid-cols-3 gap-5">
-            <div className="apple-card bg-white shadow-sm p-8 flex flex-col justify-between reveal md:row-span-2">
+            <div className="apple-card bg-white shadow-sm p-8 flex flex-col justify-between reveal">
               <div>
                 <StarIcons />
                 <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-8">
-                  &ldquo;이전에는 직원 150명 PC를 각각 다른 모델로 운영하다 보니 장애 대응이 정말 힘들었습니다.
-                  iPC로 전환한 뒤 부품을 표준화하니 재고 관리와 교체가 훨씬 수월해졌고,
-                  IT팀의 야근이 눈에 띄게 줄었습니다. 3년 무상 보증도 예산 계획 세우기가 편합니다.&rdquo;
+                  &ldquo;학과별로 사양이 제각각인 PC를 운영하다 보니 통합 관리와 장애 대응에 큰 부담이 있었습니다.
+                  iPC로 표준화한 후 강의실 PC 다운타임이 절반 이하로 줄었고, 정품 라이선스 통합 관리까지 한번에 해결됐습니다.
+                  학생들 실습 환경이 안정되니 강의 만족도까지 올라갔습니다.&rdquo;
                 </p>
               </div>
-              <div className="flex items-center gap-3 pt-6 border-t border-black/5">
-                <div className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center text-sm font-bold text-[#86868b]">하</div>
-                <div>
-                  <div className="text-sm font-semibold">하윤서</div>
-                  <div className="text-xs text-[#86868b]">스텔라랩스 IT인프라팀 팀장</div>
-                </div>
+              <div className="pt-6 border-t border-black/5">
+                <div className="text-sm font-semibold">숭실대학교</div>
               </div>
             </div>
 
-            <div className="apple-card bg-white shadow-sm p-8 reveal reveal-d1">
-              <StarIcons />
-              <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-6">
-                &ldquo;Creator 모델로 디자인팀 전체를 교체했는데, 포토샵과 프리미어 작업 속도가 체감될 정도로 빨라졌습니다.&rdquo;
-              </p>
-              <div className="flex items-center gap-3 pt-6 border-t border-black/5">
-                <div className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center text-sm font-bold text-[#86868b]">박</div>
-                <div>
-                  <div className="text-sm font-semibold">박도현</div>
-                  <div className="text-xs text-[#86868b]">루미너스 크리에이티브 디렉터</div>
-                </div>
+            <div className="apple-card bg-white shadow-sm p-8 flex flex-col justify-between reveal reveal-d1">
+              <div>
+                <StarIcons />
+                <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-6">
+                  &ldquo;24시간 풀가동되는 매장에서 가장 중요한 건 안정성입니다. iPC 도입 후 PC 장애로 인한 매출 손실이 거의 사라졌습니다.&rdquo;
+                </p>
+              </div>
+              <div className="pt-6 border-t border-black/5">
+                <div className="text-sm font-semibold">로떼 i-cafe</div>
               </div>
             </div>
 
-            <div className="apple-card bg-white shadow-sm p-8 reveal reveal-d2">
-              <StarIcons />
-              <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-6">
-                &ldquo;DevStation에서 Docker 컨테이너 20개를 동시에 돌려도 끊김이 없습니다. 빌드 시간도 40% 단축됐습니다.&rdquo;
-              </p>
-              <div className="flex items-center gap-3 pt-6 border-t border-black/5">
-                <div className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center text-sm font-bold text-[#86868b]">최</div>
-                <div>
-                  <div className="text-sm font-semibold">최시우</div>
-                  <div className="text-xs text-[#86868b]">넥스트웨어 CTO</div>
-                </div>
+            <div className="apple-card bg-white shadow-sm p-8 flex flex-col justify-between reveal reveal-d2">
+              <div>
+                <StarIcons />
+                <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-6">
+                  &ldquo;수강생이 매주 바뀌는 강의실 환경에서도 성능 편차 없이 일정하게 유지됩니다. Adobe와 개발 도구 동시 실행도 쾌적합니다.&rdquo;
+                </p>
               </div>
-            </div>
-
-            <div className="apple-card bg-white shadow-sm p-8 reveal reveal-d3 md:col-span-2">
-              <StarIcons />
-              <p className="text-[15px] text-[#1d1d1f] leading-relaxed mb-6">
-                &ldquo;MicroServer 도입 후 사내 파일 서버와 백업 시스템을 자체 운영하게 됐습니다.
-                클라우드 비용을 연간 2,400만원 절감했고, 데이터 주권 문제도 해결됐습니다.
-                무엇보다 24시간 안정적으로 돌아가는 점이 만족스럽습니다.&rdquo;
-              </p>
-              <div className="flex items-center gap-3 pt-6 border-t border-black/5">
-                <div className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center text-sm font-bold text-[#86868b]">김</div>
-                <div>
-                  <div className="text-sm font-semibold">김서연</div>
-                  <div className="text-xs text-[#86868b]">코어브릿지 경영지원본부장</div>
-                </div>
+              <div className="pt-6 border-t border-black/5">
+                <div className="text-sm font-semibold">SBS컴퓨터아카데미</div>
               </div>
             </div>
           </div>
