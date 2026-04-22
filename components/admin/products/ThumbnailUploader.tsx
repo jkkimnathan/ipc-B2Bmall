@@ -76,7 +76,7 @@ export default function ThumbnailUploader({
             <img
               src={url}
               alt={`썸네일 ${i + 1}`}
-              className="size-[120px] rounded-lg border object-cover"
+              className="size-[120px] rounded-lg border bg-zinc-50 object-contain p-2"
             />
             {i === 0 && totalCount > 0 && (
               <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
@@ -99,7 +99,7 @@ export default function ThumbnailUploader({
             <img
               src={URL.createObjectURL(file)}
               alt={`새 이미지 ${i + 1}`}
-              className="size-[120px] rounded-lg border object-cover"
+              className="size-[120px] rounded-lg border bg-zinc-50 object-contain p-2"
             />
             {value.length === 0 && i === 0 && (
               <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
