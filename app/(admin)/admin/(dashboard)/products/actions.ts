@@ -4,14 +4,22 @@
  * 표준 PC 관리 서버 액션
  * 등록, 수정, 삭제, 활성 토글 처리.
  * 모든 액션은 requireAdmin()으로 관리자 인증을 확인한다.
+ *
+ * ⚠️ 에러 처리 주의:
+ * Next.js 프로덕션 빌드는 서버 액션에서 throw된 에러 메시지를 스크러빙하여
+ * 클라이언트에 "An error occurred in the Server Components render..." 제네릭 메시지로
+ * 노출한다. 따라서 사용자에게 보여줄 메시지는 throw 대신 { error: string } 형태로
+ * return하여 클라이언트가 toast에 그대로 표시할 수 있도록 한다.
  */
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { StandardPcSpec } from '@/types/database'
 
+export type ActionResult = { error?: string }
+
 /** 활성/비활성 토글 */
-export async function toggleProductActive(id: string, currentValue: boolean) {
+export async function toggleProductActive(id: string, currentValue: boolean): Promise<ActionResult> {
   await requireAdmin()
   const supabase = await createClient()
 
@@ -20,12 +28,13 @@ export async function toggleProductActive(id: string, currentValue: boolean) {
     .update({ is_active: !currentValue })
     .eq('id', id)
 
-  if (error) throw new Error('활성 상태 변경에 실패했습니다: ' + error.message)
+  if (error) return { error: '활성 상태 변경에 실패했습니다: ' + error.message }
   revalidatePath('/admin/products')
+  return {}
 }
 
 /** 제품 삭제 (Storage 이미지도 함께 삭제) */
-export async function deleteProduct(id: string) {
+export async function deleteProduct(id: string): Promise<ActionResult> {
   await requireAdmin()
   const supabase = await createClient()
 
@@ -36,7 +45,7 @@ export async function deleteProduct(id: string) {
     .eq('id', id)
     .single()
 
-  if (fetchError) throw new Error('제품 조회에 실패했습니다: ' + fetchError.message)
+  if (fetchError) return { error: '제품 조회에 실패했습니다: ' + fetchError.message }
 
   // 2. Storage에서 이미지 삭제
   await deleteStorageFiles(supabase, product.thumbnail_urls ?? [], product.detail_image_url)
@@ -45,18 +54,19 @@ export async function deleteProduct(id: string) {
   const { error } = await supabase.from('standard_pcs').delete().eq('id', id)
 
   if (error) {
-    // FK 에러 (발주 내역에서 참조 중)
+    // FK 에러 (발주 내역에서 참조 중 — 마이그레이션 012 이후에는 SET NULL이라 발생하지 않음)
     if (error.code === '23503') {
-      throw new Error('이 PC는 발주 내역에서 사용 중이라 삭제할 수 없습니다. 대신 \'비활성\' 처리해주세요.')
+      return { error: '이 PC는 발주 내역에서 사용 중이라 삭제할 수 없습니다. 대신 \'비활성\' 처리해주세요.' }
     }
-    throw new Error('삭제에 실패했습니다: ' + error.message)
+    return { error: '삭제에 실패했습니다: ' + error.message }
   }
 
   revalidatePath('/admin/products')
+  return {}
 }
 
 /** 제품 등록 */
-export async function createProduct(formData: FormData) {
+export async function createProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   const supabase = await createClient()
 
@@ -79,15 +89,16 @@ export async function createProduct(formData: FormData) {
   })
 
   if (error) {
-    if (error.code === '23505') throw new Error('이미 사용 중인 SKU입니다. 다른 SKU를 입력해주세요.')
-    throw new Error('등록에 실패했습니다: ' + error.message)
+    if (error.code === '23505') return { error: '이미 사용 중인 SKU입니다. 다른 SKU를 입력해주세요.' }
+    return { error: '등록에 실패했습니다: ' + error.message }
   }
 
   revalidatePath('/admin/products')
+  return {}
 }
 
 /** 제품 수정 */
-export async function updateProduct(id: string, formData: FormData) {
+export async function updateProduct(id: string, formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   const supabase = await createClient()
 
@@ -119,11 +130,12 @@ export async function updateProduct(id: string, formData: FormData) {
     .eq('id', id)
 
   if (error) {
-    if (error.code === '23505') throw new Error('이미 사용 중인 SKU입니다.')
-    throw new Error('수정에 실패했습니다: ' + error.message)
+    if (error.code === '23505') return { error: '이미 사용 중인 SKU입니다.' }
+    return { error: '수정에 실패했습니다: ' + error.message }
   }
 
   revalidatePath('/admin/products')
+  return {}
 }
 
 // ============================================================

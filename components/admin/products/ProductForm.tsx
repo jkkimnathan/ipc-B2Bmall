@@ -171,14 +171,18 @@ export default function ProductForm({ mode, initialData }: ProductFormProps) {
       }
 
       // 4. 서버 액션 호출
-      if (mode === 'create') {
-        await createProduct(formData)
-        toast.success('표준 PC가 등록되었습니다.')
-      } else {
-        await updateProduct(initialData!.id, formData)
-        toast.success('표준 PC가 수정되었습니다.')
+      const result = mode === 'create'
+        ? await createProduct(formData)
+        : await updateProduct(initialData!.id, formData)
+
+      if (result?.error) {
+        toast.error(result.error)
+        return
       }
 
+      toast.success(
+        mode === 'create' ? '표준 PC가 등록되었습니다.' : '표준 PC가 수정되었습니다.'
+      )
       router.push('/admin/products')
       router.refresh()
     } catch (err) {
