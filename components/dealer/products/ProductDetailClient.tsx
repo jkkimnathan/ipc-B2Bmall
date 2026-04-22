@@ -59,7 +59,7 @@ export default function ProductDetailClient({ product }: Props) {
                 src={thumbnails[selectedImg]}
                 alt={product.name}
                 fill
-                className="object-cover"
+                className="object-contain p-4"
                 sizes="50vw"
               />
             ) : (
@@ -72,11 +72,11 @@ export default function ProductDetailClient({ product }: Props) {
                 <button
                   key={i}
                   onClick={() => setSelectedImg(i)}
-                  className={`relative w-20 h-16 rounded border-2 overflow-hidden ${
+                  className={`relative w-20 h-16 rounded border-2 overflow-hidden bg-zinc-50 ${
                     selectedImg === i ? 'border-zinc-900' : 'border-zinc-200'
                   }`}
                 >
-                  <Image src={url} alt="" fill className="object-cover" sizes="80px" />
+                  <Image src={url} alt="" fill className="object-contain p-1" sizes="80px" />
                 </button>
               ))}
             </div>

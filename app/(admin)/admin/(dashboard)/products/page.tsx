@@ -110,7 +110,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
                           <img
                             src={thumbSrc}
                             alt={product.name}
-                            className="size-10 rounded border object-cover"
+                            className="size-10 rounded border bg-zinc-50 object-contain p-0.5"
                           />
                         ) : (
                           <div className="flex size-10 items-center justify-center rounded border bg-zinc-100">

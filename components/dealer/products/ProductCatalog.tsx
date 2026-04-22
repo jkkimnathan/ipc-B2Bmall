@@ -126,7 +126,7 @@ export default function ProductCatalog({ products, currentCategory, currentQuery
                         src={pc.thumbnail_urls[0]}
                         alt={pc.name}
                         fill
-                        className="object-cover"
+                        className="object-contain p-4"
                         sizes="(max-width:768px) 100vw, 25vw"
                       />
                     ) : (
