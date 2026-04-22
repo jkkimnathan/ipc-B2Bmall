@@ -42,7 +42,8 @@ export function ProductActiveToggle({ id, isActive }: { id: string; isActive: bo
   const handleToggle = async () => {
     setPending(true)
     try {
-      await toggleProductActive(id, isActive)
+      const result = await toggleProductActive(id, isActive)
+      if (result?.error) toast.error(result.error)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '변경 실패')
     } finally {
@@ -61,8 +62,12 @@ export function ProductDropdownActions({ id, name }: ProductRowActionsProps) {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await deleteProduct(id)
-      toast.success('삭제되었습니다.')
+      const result = await deleteProduct(id)
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('삭제되었습니다.')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '삭제 실패')
     } finally {
