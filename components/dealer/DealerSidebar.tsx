@@ -14,31 +14,15 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Monitor,
-  Cpu,
-  FileText,
-  Package,
-  User,
-  LifeBuoy,
-} from 'lucide-react'
+import { LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const menuItems = [
-  { label: '대시보드', href: '/dealer', icon: LayoutDashboard },
-  { label: '표준 PC', href: '/dealer/products', icon: Monitor },
-  { label: '리퍼 부품', href: '/dealer/refurb', icon: Cpu },
-  { label: '견적 요청', href: '/dealer/quotes', icon: FileText },
-  { label: '발주 내역', href: '/dealer/orders', icon: Package },
-  { label: '마이페이지', href: '/dealer/mypage', icon: User },
-]
+import { dealerMenuItems as menuItems } from './dealerNav'
 
 export default function DealerSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="fixed left-0 top-[60px] flex h-[calc(100vh-60px)] w-[240px] flex-col border-r border-slate-200 bg-white">
+    <aside className="fixed left-0 top-[60px] hidden h-[calc(100vh-60px)] w-[240px] flex-col border-r border-slate-200 bg-white md:flex">
       <div className="px-4 pt-5 pb-2">
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
           Workspace

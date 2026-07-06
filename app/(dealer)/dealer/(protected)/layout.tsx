@@ -41,9 +41,9 @@ export default async function DealerProtectedLayout({
         cartCount={cartCount ?? 0}
       />
       <DealerSidebar />
-      {/* 메인 콘텐츠: 헤더(60px) 아래, 사이드바(240px) 오른쪽 */}
-      <main className="ml-[240px] mt-[60px] min-h-[calc(100vh-60px)]">
-        <div className="mx-auto w-full max-w-[1320px] px-8 py-8">
+      {/* 메인 콘텐츠: 헤더(60px) 아래, 데스크톱은 사이드바(240px) 오른쪽 */}
+      <main className="mt-[60px] min-h-[calc(100vh-60px)] md:ml-[240px]">
+        <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
           {children}
         </div>
       </main>

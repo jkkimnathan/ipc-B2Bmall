@@ -24,8 +24,8 @@ export default async function AdminDashboardLayout({
     <div className="min-h-screen bg-zinc-50">
       <AdminHeader email={user.email ?? ''} />
       <AdminSidebar />
-      {/* 메인 콘텐츠: 헤더(60px) 아래, 사이드바(240px) 오른쪽 */}
-      <main className="ml-[240px] mt-[60px] p-6">
+      {/* 메인 콘텐츠: 헤더(60px) 아래, 데스크톱은 사이드바(240px) 오른쪽 */}
+      <main className="mt-[60px] p-4 md:ml-[240px] md:p-6">
         {children}
       </main>
     </div>
