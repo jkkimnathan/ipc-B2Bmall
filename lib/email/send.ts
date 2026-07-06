@@ -5,7 +5,7 @@
  * 발송 실패 시에도 throw하지 않고, 로그만 남긴다.
  */
 import type { ReactElement } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getResendClient } from './client'
 import { getNotificationSettings, isEmailTemplateEnabled } from './settings'
 
@@ -26,7 +26,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{
   messageId?: string
   error?: string
 }> {
-  const supabase = await createClient()
+  // email_logs 는 RLS상 관리자 전용이지만, 거래처 세션에서 발생한 발송(신규 발주/
+  // 견적 알림)도 로그를 남겨야 하므로 서비스 롤 클라이언트를 사용한다(서버 전용).
+  const supabase = createAdminClient()
   const recipients = Array.isArray(options.to) ? options.to : [options.to]
 
   try {

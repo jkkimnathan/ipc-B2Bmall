@@ -1,14 +1,18 @@
 /**
  * 알림 설정 조회 유틸 — 서버 사이드 전용
+ *
+ * notification_settings 는 RLS상 관리자 전용 테이블이지만, 이 설정은
+ * 거래처가 발주/견적을 제출할 때(=거래처 세션)에도 "관리자 알림 발송 여부"를
+ * 판단하기 위해 읽어야 한다. 따라서 서비스 롤 클라이언트로 조회한다(서버 전용).
  */
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { NotificationSettings } from '@/types/database'
 
 const SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
 
 /** 알림 설정 조회 */
 export async function getNotificationSettings(): Promise<NotificationSettings> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data } = await supabase
     .from('notification_settings')
     .select('*')
