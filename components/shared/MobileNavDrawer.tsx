@@ -28,11 +28,6 @@ export default function MobileNavDrawer({ items, title, rootHref }: Props) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
-  // 경로 변경 시 자동 닫기
-  useEffect(() => {
-    setOpen(false)
-  }, [pathname])
-
   // 열렸을 때 배경 스크롤 잠금
   useEffect(() => {
     if (open) {
@@ -82,6 +77,7 @@ export default function MobileNavDrawer({ items, title, rootHref }: Props) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setOpen(false)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
