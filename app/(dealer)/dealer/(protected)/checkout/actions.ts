@@ -165,8 +165,8 @@ export async function submitOrder(formData: FormData): Promise<{
     .insert(orderItems)
 
   if (itemsError) {
-    // 롤백: 주문 삭제 + 재고 복원
-    await supabase.from('orders').delete().eq('id', order.id)
+    // 롤백: 주문 삭제 + 재고 복원 (삭제는 서비스 롤 클라이언트로 수행 — RLS상 거래처는 발주 삭제 불가)
+    await admin.from('orders').delete().eq('id', order.id)
     await restoreReserved()
     throw new Error('발주 항목 저장 실패: ' + itemsError.message)
   }
