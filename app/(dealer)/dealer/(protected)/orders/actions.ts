@@ -174,7 +174,8 @@ export async function updateOrder(orderId: string, formData: FormData) {
       }
       appliedDeltas.push({ partId: pid, delta })
     } else if (delta < 0) {
-      await restoreRefurbStock(admin, pid, -delta)
+      const ok = await restoreRefurbStock(admin, pid, -delta)
+      if (!ok) console.error('[updateOrder] 재고 복원 실패 — 수동 확인 필요:', { orderId, partId: pid, qty: -delta })
       appliedDeltas.push({ partId: pid, delta })
     }
   }
