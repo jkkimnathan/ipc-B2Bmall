@@ -37,6 +37,44 @@ export function categoryLabel(category: string): string {
   return map[category] ?? category
 }
 
+// ============================================================
+// 리퍼 부품 관련 유틸
+// ============================================================
+
+/** 리퍼 부품 종류 한글 라벨 */
+export function partTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    cpu: 'CPU',
+    gpu: '그래픽카드',
+    ram: '메모리(RAM)',
+    ssd: 'SSD',
+    hdd: 'HDD',
+    mb: '메인보드',
+    psu: '파워',
+    case: '케이스',
+    cooler: '쿨러',
+    monitor: '모니터',
+    etc: '기타',
+  }
+  return map[type] ?? type
+}
+
+/** 리퍼 등급 한글 라벨 + 색상 + 설명 */
+export function conditionGradeLabel(grade: string): { label: string; color: string; desc: string } {
+  const map: Record<string, { label: string; color: string; desc: string }> = {
+    S: { label: 'S급 (최상)', color: 'green', desc: '외관/성능 신품에 준함' },
+    A: { label: 'A급 (상)', color: 'blue', desc: '미세 사용감, 성능 이상 없음' },
+    B: { label: 'B급 (중)', color: 'yellow', desc: '사용감 있으나 정상 작동' },
+  }
+  return map[grade] ?? { label: grade, color: 'gray', desc: '' }
+}
+
+/** 할인율 계산 (신품 시세 대비, 0~100 정수). 시세 없으면 null */
+export function discountRate(marketPrice: number | null, salePrice: number): number | null {
+  if (!marketPrice || marketPrice <= 0 || salePrice >= marketPrice) return null
+  return Math.round((1 - salePrice / marketPrice) * 100)
+}
+
 /** 재고 상태 한글 라벨 + 색상 */
 export function stockStatusLabel(status: string): { label: string; color: string } {
   const map: Record<string, { label: string; color: string }> = {

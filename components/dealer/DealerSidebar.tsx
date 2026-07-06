@@ -17,6 +17,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Monitor,
+  Cpu,
   FileText,
   Package,
   User,
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 const menuItems = [
   { label: '대시보드', href: '/dealer', icon: LayoutDashboard },
   { label: '표준 PC', href: '/dealer/products', icon: Monitor },
+  { label: '리퍼 부품', href: '/dealer/refurb', icon: Cpu },
   { label: '견적 요청', href: '/dealer/quotes', icon: FileText },
   { label: '발주 내역', href: '/dealer/orders', icon: Package },
   { label: '마이페이지', href: '/dealer/mypage', icon: User },

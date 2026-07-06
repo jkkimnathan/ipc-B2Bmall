@@ -2,12 +2,13 @@
 
 /**
  * 장바구니 테이블 (체크박스 + 수량 조절 + 선택 삭제)
+ * 표준 PC와 리퍼 부품을 함께 표시한다 (item_type 무관 공통 렌더링).
  */
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Minus, Plus, Trash2 } from 'lucide-react'
+import { Minus, Plus, Trash2, Cpu, Monitor } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -15,16 +16,20 @@ import { Badge } from '@/components/ui/badge'
 import { formatKRW } from '@/lib/utils/format'
 import { updateCartItemQuantity, removeCartItem, removeCartItems } from '@/app/(dealer)/dealer/(protected)/cart/actions'
 
-interface CartItemRow {
+export interface CartItemRow {
   id: string
   quantity: number
-  pc: {
+  itemType: 'standard_pc' | 'refurb_part'
+  product: {
     id: string
     sku: string
     name: string
-    sale_price: number
-    stock_status: string
-    thumbnail_urls: string[]
+    salePrice: number
+    thumbnail?: string
+    available: boolean
+    stockLabel?: string
+    maxQty?: number
+    href: string
   }
 }
 
@@ -34,10 +39,13 @@ interface Props {
 
 export default function CartTable({ items }: Props) {
   const router = useRouter()
-  const [selected, setSelected] = useState<Set<string>>(new Set(items.map((i) => i.id)))
+  // 구매 가능한 항목만 기본 선택
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(items.filter((i) => i.product.available).map((i) => i.id))
+  )
   const [updating, setUpdating] = useState<string | null>(null)
 
-  const allSelected = selected.size === items.length
+  const allSelected = selected.size === items.length && items.length > 0
   const toggleAll = () => {
     if (allSelected) setSelected(new Set())
     else setSelected(new Set(items.map((i) => i.id)))
@@ -83,10 +91,10 @@ export default function CartTable({ items }: Props) {
     }
   }
 
-  // 선택된 항목만 합계
-  const selectedItems = items.filter((i) => selected.has(i.id))
-  const total = selectedItems.reduce((sum, i) => sum + i.pc.sale_price * i.quantity, 0)
-  const selectedIds = Array.from(selected).join(',')
+  // 선택된 항목만 합계 (품절 항목은 계산/발주 제외)
+  const selectedItems = items.filter((i) => selected.has(i.id) && i.product.available)
+  const total = selectedItems.reduce((sum, i) => sum + i.product.salePrice * i.quantity, 0)
+  const selectedIds = selectedItems.map((i) => i.id).join(',')
 
   return (
     <>
@@ -104,28 +112,49 @@ export default function CartTable({ items }: Props) {
       {/* 품목 리스트 */}
       <div className="rounded-lg border divide-y">
         {items.map((item) => {
-          const isOutOfStock = item.pc.stock_status === 'out_of_stock'
-          const subtotal = item.pc.sale_price * item.quantity
+          const p = item.product
+          const subtotal = p.salePrice * item.quantity
+          const atMax = p.maxQty != null && item.quantity >= p.maxQty
+          const Icon = item.itemType === 'refurb_part' ? Cpu : Monitor
 
           return (
-            <div key={item.id} className="flex items-center gap-4 p-4">
+            <div key={item.id} className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
               <Checkbox
                 checked={selected.has(item.id)}
                 onCheckedChange={() => toggleOne(item.id)}
+                disabled={!p.available}
               />
 
-              {/* PC 정보 */}
+              {/* 썸네일 */}
+              <div className="hidden sm:flex size-12 shrink-0 items-center justify-center rounded border bg-zinc-50 overflow-hidden">
+                {p.thumbnail ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.thumbnail} alt={p.name} className="size-full object-contain p-1" />
+                ) : (
+                  <Icon className="size-5 text-zinc-300" />
+                )}
+              </div>
+
+              {/* 정보 */}
               <div className="flex-1 min-w-0">
-                <Link href={`/dealer/products/${item.pc.id}`} className="font-medium text-zinc-900 hover:underline">
-                  {item.pc.name}
-                </Link>
-                <p className="text-xs text-zinc-400">{item.pc.sku}</p>
-                {isOutOfStock && <Badge variant="destructive" className="text-xs mt-1">재고없음</Badge>}
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    {item.itemType === 'refurb_part' ? '리퍼부품' : '표준PC'}
+                  </Badge>
+                  <Link href={p.href} className="font-medium text-zinc-900 hover:underline truncate">
+                    {p.name}
+                  </Link>
+                </div>
+                <p className="text-xs text-zinc-400">{p.sku}</p>
+                {!p.available && <Badge variant="destructive" className="text-xs mt-1">{p.stockLabel ?? '구매불가'}</Badge>}
+                {p.available && item.itemType === 'refurb_part' && p.stockLabel && (
+                  <p className="text-[11px] text-zinc-400 mt-0.5">{p.stockLabel}</p>
+                )}
               </div>
 
               {/* 단가 */}
-              <div className="text-sm text-zinc-500 w-28 text-right">
-                {formatKRW(item.pc.sale_price)}
+              <div className="hidden md:block text-sm text-zinc-500 w-28 text-right">
+                {formatKRW(p.salePrice)}
               </div>
 
               {/* 수량 */}
@@ -141,14 +170,14 @@ export default function CartTable({ items }: Props) {
                 <Button
                   variant="ghost" size="sm"
                   onClick={() => handleQty(item.id, item.quantity + 1)}
-                  disabled={updating === item.id}
+                  disabled={updating === item.id || atMax || !p.available}
                 >
                   <Plus className="size-3" />
                 </Button>
               </div>
 
               {/* 소계 */}
-              <div className="text-sm font-semibold text-zinc-900 w-32 text-right">
+              <div className="text-sm font-semibold text-zinc-900 w-24 sm:w-32 text-right">
                 {formatKRW(subtotal)}
               </div>
 
@@ -162,7 +191,7 @@ export default function CartTable({ items }: Props) {
       </div>
 
       {/* 하단 합계 */}
-      <div className="flex items-center justify-end gap-6 pt-4 border-t">
+      <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6 pt-4 border-t">
         <div className="text-sm text-zinc-500">
           품목 수: <span className="font-medium text-zinc-900">{selectedItems.length}종</span>
         </div>
@@ -171,7 +200,7 @@ export default function CartTable({ items }: Props) {
         </div>
         <Button
           size="lg"
-          disabled={selected.size === 0}
+          disabled={selectedItems.length === 0}
           render={<Link href={`/dealer/checkout?items=${selectedIds}`} />}
         >
           발주서 작성 &rarr;

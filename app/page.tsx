@@ -47,6 +47,7 @@ export default function LandingPage() {
           </a>
           <div className="hidden md:flex items-center gap-8 text-[13px] text-[#86868b] font-medium">
             <a href="#lineup" className="hover:text-[#1d1d1f] transition-colors duration-300">제품</a>
+            <a href="#refurb" className="hover:text-[#1d1d1f] transition-colors duration-300">리퍼 부품</a>
             <a href="#why" className="hover:text-[#1d1d1f] transition-colors duration-300">도입 효과</a>
             <a href="#stories" className="hover:text-[#1d1d1f] transition-colors duration-300">도입 사례</a>
             <a href="#process" className="hover:text-[#1d1d1f] transition-colors duration-300">도입 프로세스</a>
@@ -202,6 +203,60 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* REFURB PARTS */}
+      <section id="refurb" className="py-24 md:py-32 lg:py-40">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+            <div className="reveal">
+              <p className="text-emerald-600 font-semibold text-sm mb-3">리퍼 부품 스토어</p>
+              <h2 className="font-bold text-[#1d1d1f] mb-5" style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', lineHeight: 1.12 }}>
+                검수 완료 리퍼 부품,<br />합리적인 가격으로.
+              </h2>
+              <p className="text-[#86868b] text-[17px] leading-relaxed mb-8 max-w-[46ch]">
+                엄격한 검수를 통과한 CPU, 그래픽카드, 메모리, SSD 등 리퍼비시 부품을 신품 대비 합리적인 가격에 공급합니다.
+                모든 부품은 등급 표기와 자체 보증이 함께 제공됩니다.
+              </p>
+              <div className="space-y-4 mb-10">
+                {[
+                  { icon: BadgeCheck, t: 'S/A/B 등급제 — 상태를 투명하게 표기' },
+                  { icon: ShieldCheck, t: '전 부품 자체 보증 제공' },
+                  { icon: Wallet, t: '신품 대비 최대 60% 절감' },
+                ].map(({ icon: Icon, t }) => (
+                  <div key={t} className="flex items-start gap-4">
+                    <Icon className="size-5 text-emerald-500 mt-0.5 shrink-0" />
+                    <span className="text-[15px]">{t}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/dealer/login" className="inline-flex items-center gap-1 text-emerald-600 font-medium text-base group">
+                리퍼 부품 보러가기
+                <ArrowRight className="size-[18px] transition-transform group-hover:translate-x-[3px]" />
+              </Link>
+            </div>
+            <div className="reveal reveal-d1">
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { icon: Cpu, label: 'CPU', desc: 'Intel · AMD' },
+                  { icon: Monitor, label: '그래픽카드', desc: 'NVIDIA · AMD' },
+                  { icon: RefreshCw, label: '메모리 · SSD', desc: '검수 완료' },
+                  { icon: BadgeCheck, label: '보증 포함', desc: '안심 구매' },
+                ].map(({ icon: Icon, label, desc }) => (
+                  <div key={label} className="apple-card bg-[#f5f5f7] p-8 flex flex-col gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      <Icon className="size-6 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#1d1d1f]">{label}</p>
+                      <p className="text-sm text-[#86868b]">{desc}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

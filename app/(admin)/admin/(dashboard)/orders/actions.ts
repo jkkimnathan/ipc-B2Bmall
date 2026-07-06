@@ -13,6 +13,7 @@ import { logOrderEvent } from '@/lib/orders/events'
 import { canTransitionTo, formatKRW, formatDateTime } from '@/lib/utils/format'
 import { sendEmail } from '@/lib/email/send'
 import { getDealerEmailForOrder, getSiteUrl } from '@/lib/email/helpers'
+import { restoreRefurbStockForOrder } from '@/lib/refurb/stock'
 import OrderApprovedToDealerEmail from '@/components/emails/OrderApprovedToDealerEmail'
 import OrderRejectedToDealerEmail from '@/components/emails/OrderRejectedToDealerEmail'
 import OrderShippedToDealerEmail from '@/components/emails/OrderShippedToDealerEmail'
@@ -130,6 +131,9 @@ export async function rejectOrder(orderId: string, reason: string) {
     .eq('id', orderId)
 
   if (error) throw new Error('반려 실패: ' + error.message)
+
+  // 리퍼 부품 재고 복원
+  await restoreRefurbStockForOrder(orderId)
 
   await logOrderEvent({
     orderId,
@@ -298,6 +302,9 @@ export async function adminCancelOrder(orderId: string, reason: string) {
     .eq('id', orderId)
 
   if (error) throw new Error('취소 실패: ' + error.message)
+
+  // 리퍼 부품 재고 복원
+  await restoreRefurbStockForOrder(orderId)
 
   await logOrderEvent({
     orderId,
