@@ -10,7 +10,6 @@ import { toast } from 'sonner'
 import { AlertTriangle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,12 +23,13 @@ import type { DealerAddress } from '@/types/database'
 
 interface CheckoutItem {
   cartItemId: string
-  pcId: string
+  itemType: 'standard_pc' | 'refurb_part'
   name: string
   sku: string
   price: number
   quantity: number
-  stockStatus: string
+  available: boolean
+  note?: string
 }
 
 interface Props {
@@ -49,7 +49,7 @@ export default function CheckoutClient({ items, addresses, cartItemIds }: Props)
   const [dealerMemo, setDealerMemo] = useState('')
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
-  const hasOutOfStock = items.some((i) => i.stockStatus === 'out_of_stock')
+  const hasOutOfStock = items.some((i) => !i.available)
   const selectedAddress = addresses.find((a) => a.id === addressId)
 
   // 오늘 이후 날짜만 선택 가능
@@ -57,7 +57,7 @@ export default function CheckoutClient({ items, addresses, cartItemIds }: Props)
 
   const handleSubmit = async () => {
     if (!addressId) { toast.error('배송지를 선택해주세요.'); return }
-    if (hasOutOfStock) { toast.error('품절 상품이 포함되어 있습니다.'); return }
+    if (hasOutOfStock) { toast.error('구매할 수 없는 상품(품절·재고부족)이 포함되어 있습니다.'); return }
 
     setSubmitting(true)
     try {
@@ -93,10 +93,15 @@ export default function CheckoutClient({ items, addresses, cartItemIds }: Props)
           {items.map((item) => (
             <div key={item.cartItemId} className="flex items-center justify-between py-2 border-b last:border-0">
               <div>
-                <p className="font-medium text-zinc-900">{item.name} <span className="text-zinc-400 text-xs">x {item.quantity}</span></p>
+                <p className="font-medium text-zinc-900">
+                  <Badge variant="outline" className="text-[10px] mr-1.5 align-middle">
+                    {item.itemType === 'refurb_part' ? '리퍼부품' : '표준PC'}
+                  </Badge>
+                  {item.name} <span className="text-zinc-400 text-xs">x {item.quantity}</span>
+                </p>
                 <p className="text-xs text-zinc-400">{item.sku}</p>
-                {item.stockStatus === 'out_of_stock' && (
-                  <Badge variant="destructive" className="text-xs mt-1">품절</Badge>
+                {!item.available && (
+                  <Badge variant="destructive" className="text-xs mt-1">{item.note ?? '구매불가'}</Badge>
                 )}
               </div>
               <span className="font-medium">{formatKRW(item.price * item.quantity)}</span>

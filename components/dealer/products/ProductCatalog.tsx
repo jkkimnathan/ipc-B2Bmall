@@ -31,6 +31,7 @@ const categoryTabs = [
   { value: 'business', label: 'iPC Business' },
   { value: 'pro', label: 'iPC Pro' },
   { value: 'master', label: 'iPC Master' },
+  { value: 'aipc', label: 'iPC AI' },
 ]
 
 /** 사양 요약 한 줄 (CPU / RAM / GPU) */

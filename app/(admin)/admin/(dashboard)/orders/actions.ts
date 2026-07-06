@@ -13,6 +13,7 @@ import { logOrderEvent } from '@/lib/orders/events'
 import { canTransitionTo, formatKRW, formatDateTime } from '@/lib/utils/format'
 import { sendEmail } from '@/lib/email/send'
 import { getDealerEmailForOrder, getSiteUrl } from '@/lib/email/helpers'
+import { restoreRefurbStockForOrder } from '@/lib/refurb/stock'
 import OrderApprovedToDealerEmail from '@/components/emails/OrderApprovedToDealerEmail'
 import OrderRejectedToDealerEmail from '@/components/emails/OrderRejectedToDealerEmail'
 import OrderShippedToDealerEmail from '@/components/emails/OrderShippedToDealerEmail'
@@ -121,15 +122,23 @@ export async function rejectOrder(orderId: string, reason: string) {
 
   if (!reason?.trim()) throw new Error('반려 사유를 입력해주세요.')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 반려. 동시 요청 중 한 건만
+  // 성공하여 재고 복원이 중복 실행되는 것을 방지한다.
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({
       status: 'rejected',
       admin_memo: reason.trim(),
     })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('반려 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
+
+  // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
+  await restoreRefurbStockForOrder(orderId)
 
   await logOrderEvent({
     orderId,
@@ -289,15 +298,22 @@ export async function adminCancelOrder(orderId: string, reason: string) {
 
   if (!reason?.trim()) throw new Error('취소 사유를 입력해주세요.')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 취소 (재고 복원 중복 방지)
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({
       status: 'canceled',
       admin_memo: reason.trim(),
     })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('취소 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
+
+  // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
+  await restoreRefurbStockForOrder(orderId)
 
   await logOrderEvent({
     orderId,

@@ -19,10 +19,10 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   const cartItemIds = sp.items?.split(',').filter(Boolean)
   if (!cartItemIds?.length) redirect('/dealer/cart')
 
-  // 장바구니 항목 + PC 정보
+  // 장바구니 항목 + PC/리퍼 부품 정보
   const { data: cartItems } = await supabase
     .from('cart_items')
-    .select('*, standard_pcs(*)')
+    .select('*, standard_pcs(*), refurb_parts(*)')
     .eq('dealer_id', session.dealer.id)
     .in('id', cartItemIds)
 
@@ -36,19 +36,48 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
     .order('is_default', { ascending: false })
     .order('created_at', { ascending: true })
 
-  const items = cartItems.map((item) => {
+  type CheckoutRow = {
+    cartItemId: string
+    itemType: 'standard_pc' | 'refurb_part'
+    name: string
+    sku: string
+    price: number
+    quantity: number
+    available: boolean
+    note?: string
+  }
+  const items = cartItems.flatMap((item): CheckoutRow[] => {
+    const qty = item.quantity as number
+    if (item.item_type === 'refurb_part') {
+      const part = item.refurb_parts as {
+        id: string; name: string; sku: string; sale_price: number; stock_quantity: number
+      } | null
+      if (!part) return []
+      return [{
+        cartItemId: item.id as string,
+        itemType: 'refurb_part' as const,
+        name: part.name,
+        sku: part.sku,
+        price: part.sale_price,
+        quantity: qty,
+        available: part.stock_quantity >= qty,
+        note: part.stock_quantity < qty ? `재고 부족 (${part.stock_quantity}개)` : undefined,
+      }]
+    }
     const pc = item.standard_pcs as {
       id: string; name: string; sku: string; sale_price: number; stock_status: string
-    }
-    return {
+    } | null
+    if (!pc) return []
+    return [{
       cartItemId: item.id as string,
-      pcId: pc.id,
+      itemType: 'standard_pc' as const,
       name: pc.name,
       sku: pc.sku,
       price: pc.sale_price,
-      quantity: item.quantity as number,
-      stockStatus: pc.stock_status,
-    }
+      quantity: qty,
+      available: pc.stock_status !== 'out_of_stock',
+      note: pc.stock_status === 'out_of_stock' ? '품절' : undefined,
+    }]
   })
 
   return (

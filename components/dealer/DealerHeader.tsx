@@ -24,6 +24,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { ChevronDown, LogOut, User, KeyRound, ShoppingCart } from 'lucide-react'
+import MobileNavDrawer from '@/components/shared/MobileNavDrawer'
+import { dealerMenuItems } from './dealerNav'
 
 interface DealerHeaderProps {
   companyName: string
@@ -47,9 +49,10 @@ export default function DealerHeader({ companyName, userName, userRole, cartCoun
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur px-6">
-      {/* 좌측: 로고 */}
-      <div className="flex items-center gap-3">
+    <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-slate-200 bg-white/90 backdrop-blur px-4 md:px-6">
+      {/* 좌측: 햄버거(모바일) + 로고 */}
+      <div className="flex items-center gap-2 md:gap-3">
+        <MobileNavDrawer items={dealerMenuItems} title="iPC B2B·MALL" rootHref="/dealer" />
         <Link href="/dealer" className="flex items-baseline gap-2">
           <span className="text-[19px] font-extrabold tracking-tight text-slate-900">iPC</span>
           <span className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">B2B·MALL</span>

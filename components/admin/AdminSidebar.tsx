@@ -6,31 +6,14 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Users,
-  Monitor,
-  Package,
-  FileText,
-  Settings,
-} from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-// 사이드바 메뉴 항목 정의
-const menuItems = [
-  { label: '대시보드', href: '/admin', icon: LayoutDashboard },
-  { label: '거래처 관리', href: '/admin/dealers', icon: Users },
-  { label: '표준 PC 관리', href: '/admin/products', icon: Monitor },
-  { label: '발주 관리', href: '/admin/orders', icon: Package },
-  { label: '견적 요청', href: '/admin/quotes', icon: FileText },
-  { label: '설정', href: '/admin/settings', icon: Settings },
-]
+import { adminMenuItems as menuItems } from './adminNav'
 
 export default function AdminSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="fixed left-0 top-[60px] h-[calc(100vh-60px)] w-[240px] border-r bg-white">
+    <aside className="fixed left-0 top-[60px] hidden h-[calc(100vh-60px)] w-[240px] border-r bg-white md:block">
       <nav className="flex flex-col gap-1 p-3">
         {menuItems.map((item) => {
           // 대시보드는 정확히 /admin일 때만, 나머지는 prefix 매칭

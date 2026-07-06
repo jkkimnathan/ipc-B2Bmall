@@ -10,8 +10,8 @@
 /** 거래처 상태: pending(승인대기), active(활성), suspended(정지) */
 export type DealerStatus = 'pending' | 'active' | 'suspended'
 
-/** PC 카테고리: Business / Pro / Master */
-export type PcCategory = 'business' | 'pro' | 'master'
+/** PC 카테고리: Business / Pro / Master / AiPC */
+export type PcCategory = 'business' | 'pro' | 'master' | 'aipc'
 
 /** 재고 상태: in_stock(재고있음), low_stock(재고부족), out_of_stock(품절), made_to_order(주문생산) */
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'made_to_order'
@@ -140,6 +140,42 @@ export interface StandardPc {
   updated_at: string
 }
 
+// ============================================================
+// 리퍼(재정비) 부품
+// ============================================================
+
+/** 리퍼 부품 종류 */
+export type PartType =
+  | 'cpu' | 'gpu' | 'ram' | 'ssd' | 'hdd' | 'mb'
+  | 'psu' | 'case' | 'cooler' | 'monitor' | 'etc'
+
+/** 리퍼 등급: S(최상) / A(상) / B(중) */
+export type ConditionGrade = 'S' | 'A' | 'B'
+
+/** 장바구니/발주 항목 종류 */
+export type ItemType = 'standard_pc' | 'refurb_part'
+
+/** 리퍼 부품 - 재정비 부품 카탈로그 */
+export interface RefurbPart {
+  id: string
+  sku: string
+  name: string
+  part_type: PartType
+  condition_grade: ConditionGrade
+  manufacturer: string | null
+  description: string | null
+  spec_summary: string | null
+  thumbnail_urls: string[]
+  detail_image_url: string | null
+  market_price: number | null
+  sale_price: number
+  stock_quantity: number
+  warranty_months: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 /** 거래처 배송지 주소록 */
 export interface DealerAddress {
   id: string
@@ -156,11 +192,13 @@ export interface DealerAddress {
   updated_at: string
 }
 
-/** 장바구니 항목 */
+/** 장바구니 항목 (표준 PC 또는 리퍼 부품) */
 export interface CartItem {
   id: string
   dealer_id: string
-  standard_pc_id: string
+  item_type: ItemType
+  standard_pc_id: string | null
+  refurb_part_id: string | null
   quantity: number
   created_at: string
   updated_at: string
@@ -195,7 +233,9 @@ export interface Order {
 export interface OrderItem {
   id: string
   order_id: string
+  item_type: ItemType
   standard_pc_id: string | null
+  refurb_part_id: string | null
   pc_name_snapshot: string
   unit_price_snapshot: number
   quantity: number

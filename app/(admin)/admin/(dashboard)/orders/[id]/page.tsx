@@ -69,7 +69,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const sourceQuoteIds = (items ?? [])
     .filter((item: OrderItem) => item.source_quote_id)
     .map((item: OrderItem) => item.source_quote_id!)
-  let sourceQuoteMap: Record<string, { quote_no: string; rfq_id: string }> = {}
+  const sourceQuoteMap: Record<string, { quote_no: string; rfq_id: string }> = {}
   if (sourceQuoteIds.length > 0) {
     const { data: quotes } = await supabase
       .from('quotes')

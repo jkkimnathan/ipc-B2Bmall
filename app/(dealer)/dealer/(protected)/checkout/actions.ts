@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireDealer } from '@/lib/auth/dealer'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { logOrderEvent } from '@/lib/orders/events'
 import { formatKRW, formatDateTime } from '@/lib/utils/format'
 import { sendEmail } from '@/lib/email/send'
@@ -44,22 +45,42 @@ export async function submitOrder(formData: FormData): Promise<{
   if (!cartItemIds?.length) throw new Error('발주 품목이 없습니다.')
   if (!addressId) throw new Error('배송지를 선택해주세요.')
 
-  // 장바구니 항목 + PC 정보 조회
+  // 장바구니 항목 + PC/리퍼 부품 정보 조회
   const { data: cartItems, error: cartError } = await supabase
     .from('cart_items')
-    .select('*, standard_pcs(*)')
+    .select('*, standard_pcs(*), refurb_parts(*)')
     .eq('dealer_id', session.dealer.id)
     .in('id', cartItemIds)
 
   if (cartError || !cartItems?.length) throw new Error('장바구니 항목을 찾을 수 없습니다.')
 
-  // 재고 확인
-  for (const item of cartItems) {
-    const pc = item.standard_pcs as { stock_status: string; name: string } | null
-    if (pc?.stock_status === 'out_of_stock') {
+  // 항목 정규화 + 사전 재고 확인
+  type NormalizedItem = {
+    itemType: 'standard_pc' | 'refurb_part'
+    refId: string | null
+    name: string
+    price: number
+    quantity: number
+  }
+  const normalized: NormalizedItem[] = cartItems.map((item) => {
+    const qty = item.quantity as number
+    if (item.item_type === 'refurb_part') {
+      const part = item.refurb_parts as {
+        id: string; name: string; sale_price: number; stock_quantity: number; is_active: boolean
+      } | null
+      if (!part || !part.is_active) throw new Error('판매 중이 아닌 리퍼 부품이 포함되어 있습니다.')
+      if (part.stock_quantity < qty) {
+        throw new Error(`${part.name}의 재고가 부족합니다 (재고 ${part.stock_quantity}개). 장바구니 수량을 조정해주세요.`)
+      }
+      return { itemType: 'refurb_part', refId: part.id, name: part.name, price: part.sale_price, quantity: qty }
+    }
+    const pc = item.standard_pcs as { id: string; name: string; sale_price: number; stock_status: string } | null
+    if (!pc) throw new Error('존재하지 않는 상품이 포함되어 있습니다.')
+    if (pc.stock_status === 'out_of_stock') {
       throw new Error(`${pc.name}이(가) 품절 상태입니다. 장바구니에서 제거 후 다시 시도해주세요.`)
     }
-  }
+    return { itemType: 'standard_pc', refId: pc.id, name: pc.name, price: pc.sale_price, quantity: qty }
+  })
 
   // 배송지 조회
   const { data: address } = await supabase
@@ -72,10 +93,28 @@ export async function submitOrder(formData: FormData): Promise<{
   if (!address) throw new Error('유효하지 않은 배송지입니다.')
 
   // 합계 계산
-  const totalAmount = cartItems.reduce((sum, item) => {
-    const pc = item.standard_pcs as { sale_price: number } | null
-    return sum + (pc?.sale_price ?? 0) * (item.quantity as number)
-  }, 0)
+  const totalAmount = normalized.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  // ── 리퍼 부품 재고 원자적 예약 (동시성 안전) ──
+  const admin = createAdminClient()
+  const reserved: { partId: string; qty: number }[] = []
+  const restoreReserved = async () => {
+    for (const r of reserved) {
+      await admin.rpc('restore_refurb_stock', { p_part_id: r.partId, p_qty: r.qty })
+    }
+  }
+  for (const item of normalized) {
+    if (item.itemType !== 'refurb_part' || !item.refId) continue
+    const { data: ok, error: rpcError } = await admin.rpc('reserve_refurb_stock', {
+      p_part_id: item.refId,
+      p_qty: item.quantity,
+    })
+    if (rpcError || !ok) {
+      await restoreReserved()
+      throw new Error(`${item.name}의 재고가 부족합니다. 잠시 후 다시 시도해주세요.`)
+    }
+    reserved.push({ partId: item.refId, qty: item.quantity })
+  }
 
   // 발주번호 생성
   const orderNo = await generateOrderNo(supabase)
@@ -104,27 +143,33 @@ export async function submitOrder(formData: FormData): Promise<{
     .select('id')
     .single()
 
-  if (orderError || !order) throw new Error('발주서 생성 실패: ' + (orderError?.message ?? ''))
+  if (orderError || !order) {
+    await restoreReserved()
+    throw new Error('발주서 생성 실패: ' + (orderError?.message ?? ''))
+  }
 
   // 발주 항목 INSERT (스냅샷)
-  const orderItems = cartItems.map((item) => {
-    const pc = item.standard_pcs as { id: string; name: string; sale_price: number } | null
-    const qty = item.quantity as number
-    return {
-      order_id: order.id,
-      standard_pc_id: pc?.id ?? null,
-      pc_name_snapshot: pc?.name ?? '알 수 없음',
-      unit_price_snapshot: pc?.sale_price ?? 0,
-      quantity: qty,
-      subtotal: (pc?.sale_price ?? 0) * qty,
-    }
-  })
+  const orderItems = normalized.map((item) => ({
+    order_id: order.id,
+    item_type: item.itemType,
+    standard_pc_id: item.itemType === 'standard_pc' ? item.refId : null,
+    refurb_part_id: item.itemType === 'refurb_part' ? item.refId : null,
+    pc_name_snapshot: item.name,
+    unit_price_snapshot: item.price,
+    quantity: item.quantity,
+    subtotal: item.price * item.quantity,
+  }))
 
   const { error: itemsError } = await supabase
     .from('order_items')
     .insert(orderItems)
 
-  if (itemsError) throw new Error('발주 항목 저장 실패: ' + itemsError.message)
+  if (itemsError) {
+    // 롤백: 주문 삭제 + 재고 복원 (삭제는 서비스 롤 클라이언트로 수행 — RLS상 거래처는 발주 삭제 불가)
+    await admin.from('orders').delete().eq('id', order.id)
+    await restoreReserved()
+    throw new Error('발주 항목 저장 실패: ' + itemsError.message)
+  }
 
   // 발주 이벤트 기록
   await logOrderEvent({
