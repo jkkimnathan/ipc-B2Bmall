@@ -20,13 +20,30 @@ export default async function CartPage() {
     .eq('dealer_id', session.dealer.id)
     .order('created_at', { ascending: true })
 
+  // 원본 상품이 비활성/삭제되어 조인이 비는 경우(RLS로 활성 상품만 조회 가능)에도
+  // 조용히 사라지지 않도록 "판매 종료" 행으로 표시한다 (삭제만 가능).
+  const unavailableRow = (item: { id: unknown; quantity: unknown; item_type: string }): CartItemRow => ({
+    id: item.id as string,
+    quantity: item.quantity as number,
+    itemType: item.item_type as 'standard_pc' | 'refurb_part',
+    product: {
+      id: '',
+      sku: '—',
+      name: '판매가 종료된 상품입니다',
+      salePrice: 0,
+      available: false,
+      stockLabel: '판매 종료',
+      href: item.item_type === 'refurb_part' ? '/dealer/refurb' : '/dealer/products',
+    },
+  })
+
   const cartItems: CartItemRow[] = (items ?? []).flatMap((item): CartItemRow[] => {
     if (item.item_type === 'refurb_part') {
       const p = item.refurb_parts as {
         id: string; sku: string; name: string; sale_price: number;
         stock_quantity: number; thumbnail_urls: string[]
       } | null
-      if (!p) return []
+      if (!p) return [unavailableRow(item)]
       return [{
         id: item.id as string,
         quantity: item.quantity as number,
@@ -49,7 +66,7 @@ export default async function CartPage() {
       id: string; sku: string; name: string; sale_price: number;
       stock_status: string; thumbnail_urls: string[]
     } | null
-    if (!p) return []
+    if (!p) return [unavailableRow(item)]
     const outOfStock = p.stock_status === 'out_of_stock'
     return [{
       id: item.id as string,

@@ -30,14 +30,19 @@ export async function cancelOrder(orderId: string) {
     throw new Error('수정 가능 시간이 지났거나 이미 처리된 발주입니다.')
   }
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): submitted 상태일 때만 취소. 동시 요청 시 한 건만 성공하여
+  // 재고 복원이 중복 실행되는 것을 방지한다.
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({ status: 'canceled' })
     .eq('id', orderId)
+    .eq('status', 'submitted')
+    .select('id')
 
   if (error) throw new Error('취소 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다.')
 
-  // 리퍼 부품 재고 복원
+  // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
   await restoreRefurbStockForOrder(orderId)
 
   await logOrderEvent({
@@ -101,7 +106,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
   // 기존 발주 항목(권위 있는 메타데이터) 조회
   const { data: existingItems } = await supabase
     .from('order_items')
-    .select('id, item_type, standard_pc_id, refurb_part_id, quantity, pc_name_snapshot, unit_price_snapshot')
+    .select('id, item_type, standard_pc_id, refurb_part_id, quantity, pc_name_snapshot, unit_price_snapshot, source_type, source_quote_id')
     .eq('order_id', orderId)
 
   const existingById = new Map((existingItems ?? []).map((i) => [i.id as string, i]))
@@ -119,6 +124,9 @@ export async function updateOrder(orderId: string, formData: FormData) {
       unit_price_snapshot: ex.unit_price_snapshot as number,
       quantity: inc.quantity,
       subtotal: (ex.unit_price_snapshot as number) * inc.quantity,
+      // 견적 기반 발주의 출처 정보 유지
+      source_type: (ex.source_type as 'standard' | 'quote' | null) ?? 'standard',
+      source_quote_id: ex.source_quote_id as string | null,
     }
   })
 
@@ -186,16 +194,35 @@ export async function updateOrder(orderId: string, formData: FormData) {
     throw new Error('수정 실패: ' + orderError.message)
   }
 
-  // 기존 항목 삭제 후 재입력
-  await supabase.from('order_items').delete().eq('order_id', orderId)
+  // 항목 교체: 새 항목을 먼저 INSERT하고, 성공 시 기존 항목만 삭제한다.
+  // (삭제 → 삽입 순서였다면 삽입 실패 시 항목이 0개인 발주가 남는다)
+  const oldItemIds = (existingItems ?? []).map((i) => i.id as string)
 
-  const { error: itemsError } = await supabase
+  const { data: insertedItems, error: itemsError } = await supabase
     .from('order_items')
     .insert(finalItems)
+    .select('id')
 
   if (itemsError) {
     await rollbackDeltas()
     throw new Error('항목 저장 실패: ' + itemsError.message)
+  }
+
+  if (oldItemIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('order_items')
+      .delete()
+      .in('id', oldItemIds)
+
+    if (deleteError) {
+      // 새로 넣은 항목 제거로 원상 복구
+      const newIds = (insertedItems ?? []).map((i) => i.id as string)
+      if (newIds.length > 0) {
+        await supabase.from('order_items').delete().in('id', newIds)
+      }
+      await rollbackDeltas()
+      throw new Error('항목 저장 실패: ' + deleteError.message)
+    }
   }
 
   await logOrderEvent({

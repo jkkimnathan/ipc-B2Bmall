@@ -13,9 +13,12 @@ function supabaseHostname(): string {
 // Next.js는 인라인 부트스트랩 스크립트를, Tailwind는 인라인 스타일을 사용하므로
 // script/style 에 'unsafe-inline'을 허용하되, 프레이밍/object/base-uri 는 차단한다.
 // Supabase(REST/Storage/Realtime)를 위해 connect/img 에 https:·wss: 를 허용한다.
+// 개발 모드(next dev)의 Fast Refresh/HMR은 eval을 사용하므로 dev에서만 허용
+const isDev = process.env.NODE_ENV === 'development'
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
