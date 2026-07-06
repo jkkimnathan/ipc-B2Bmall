@@ -20,21 +20,18 @@ export default async function EditQuoteRequestPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: rfq, error } = await supabase
-    .from('quote_requests')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // RFQ와 배송지 목록을 병렬 조회
+  const [{ data: rfq, error }, { data: addresses }] = await Promise.all([
+    supabase.from('quote_requests').select('*').eq('id', id).single(),
+    supabase
+      .from('dealer_addresses')
+      .select('*')
+      .eq('dealer_id', session.dealer.id)
+      .order('is_default', { ascending: false }),
+  ])
 
   if (error || !rfq || rfq.dealer_id !== session.dealer.id) notFound()
   if (!canEditRfq(rfq)) redirect(`/dealer/quotes/${id}`)
-
-  // 배송지 목록
-  const { data: addresses } = await supabase
-    .from('dealer_addresses')
-    .select('*')
-    .eq('dealer_id', session.dealer.id)
-    .order('is_default', { ascending: false })
 
   return (
     <div className="flex flex-col gap-6">

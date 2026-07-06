@@ -19,22 +19,22 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   const cartItemIds = sp.items?.split(',').filter(Boolean)
   if (!cartItemIds?.length) redirect('/dealer/cart')
 
-  // 장바구니 항목 + PC/리퍼 부품 정보
-  const { data: cartItems } = await supabase
-    .from('cart_items')
-    .select('*, standard_pcs(*), refurb_parts(*)')
-    .eq('dealer_id', session.dealer.id)
-    .in('id', cartItemIds)
+  // 장바구니 항목(+PC/리퍼 부품)과 배송지 목록을 병렬 조회
+  const [{ data: cartItems }, { data: addresses }] = await Promise.all([
+    supabase
+      .from('cart_items')
+      .select('*, standard_pcs(*), refurb_parts(*)')
+      .eq('dealer_id', session.dealer.id)
+      .in('id', cartItemIds),
+    supabase
+      .from('dealer_addresses')
+      .select('*')
+      .eq('dealer_id', session.dealer.id)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: true }),
+  ])
 
   if (!cartItems?.length) redirect('/dealer/cart')
-
-  // 배송지 목록
-  const { data: addresses } = await supabase
-    .from('dealer_addresses')
-    .select('*')
-    .eq('dealer_id', session.dealer.id)
-    .order('is_default', { ascending: false })
-    .order('created_at', { ascending: true })
 
   type CheckoutRow = {
     cartItemId: string

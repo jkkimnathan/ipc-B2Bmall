@@ -20,28 +20,21 @@ export default async function DealerOrderEditPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // 발주서/항목/배송지를 병렬 조회
+  const [{ data: order, error }, { data: items }, { data: addresses }] = await Promise.all([
+    supabase.from('orders').select('*').eq('id', id).single(),
+    supabase.from('order_items').select('*').eq('order_id', id).order('pc_name_snapshot'),
+    supabase
+      .from('dealer_addresses')
+      .select('*')
+      .eq('dealer_id', session.dealer.id)
+      .order('is_default', { ascending: false }),
+  ])
 
   if (error || !order || order.dealer_id !== session.dealer.id) notFound()
 
   // 수정 불가하면 상세로 리다이렉트
   if (!canEditOrder(order)) redirect(`/dealer/orders/${id}`)
-
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', id)
-    .order('pc_name_snapshot')
-
-  const { data: addresses } = await supabase
-    .from('dealer_addresses')
-    .select('*')
-    .eq('dealer_id', session.dealer.id)
-    .order('is_default', { ascending: false })
 
   return (
     <div className="flex flex-col gap-6">

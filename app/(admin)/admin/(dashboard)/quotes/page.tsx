@@ -32,19 +32,7 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
   const q = sp.q ?? ''
   const period = sp.period ?? ''
 
-  // 회신대기 카운트
-  const { count: submittedCount } = await supabase
-    .from('quote_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'submitted')
-
-  // 24시간 이상 미회신 카운트
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { count: overdueCount } = await supabase
-    .from('quote_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'submitted')
-    .lt('submitted_at', cutoff24h)
 
   // 목록 쿼리
   let query = supabase
@@ -78,7 +66,21 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
   }
 
   query = query.limit(100)
-  const { data: rfqs } = await query
+
+  // 목록 + 회신대기/24시간 초과 카운트를 병렬 조회
+  const [{ data: rfqs }, { count: submittedCount }, { count: overdueCount }] =
+    await Promise.all([
+      query,
+      supabase
+        .from('quote_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'submitted'),
+      supabase
+        .from('quote_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'submitted')
+        .lt('submitted_at', cutoff24h),
+    ])
 
   // 거래처명 클라이언트 필터
   let filtered = rfqs ?? []

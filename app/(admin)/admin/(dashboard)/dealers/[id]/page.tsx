@@ -17,34 +17,25 @@ export default async function DealerDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  // 거래처 정보
-  const { data: dealer, error } = await supabase
-    .from('dealers')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // 거래처/담당자/발주·견적 건수를 병렬 조회 (모두 id만 필요)
+  const [
+    { data: dealer, error },
+    { data: users },
+    { count: orderCount },
+    { count: rfqCount },
+  ] = await Promise.all([
+    supabase.from('dealers').select('*').eq('id', id).single(),
+    supabase
+      .from('dealer_users')
+      .select('*')
+      .eq('dealer_id', id)
+      .order('is_primary', { ascending: false })
+      .order('created_at', { ascending: true }),
+    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('dealer_id', id),
+    supabase.from('quote_requests').select('*', { count: 'exact', head: true }).eq('dealer_id', id),
+  ])
 
   if (error || !dealer) notFound()
-
-  // 담당자 목록
-  const { data: users } = await supabase
-    .from('dealer_users')
-    .select('*')
-    .eq('dealer_id', id)
-    .order('is_primary', { ascending: false })
-    .order('created_at', { ascending: true })
-
-  // 발주 건수
-  const { count: orderCount } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('dealer_id', id)
-
-  // 견적요청 건수
-  const { count: rfqCount } = await supabase
-    .from('quote_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('dealer_id', id)
 
   // 사업자등록증 signed URL 생성 (비공개 버킷이므로 직접 접근 불가)
   let certSignedUrl: string | null = null

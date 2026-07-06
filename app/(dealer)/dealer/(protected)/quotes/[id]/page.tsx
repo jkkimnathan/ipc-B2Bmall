@@ -22,29 +22,24 @@ export default async function DealerQuoteDetailPage({ params }: PageProps) {
   // 만료 자동 처리 (페이지 진입 시)
   await checkAndExpireQuote(id)
 
-  const { data: rfq, error } = await supabase
-    .from('quote_requests')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // RFQ/견적서/이벤트를 병렬 조회 (만료 처리 후, 모두 id만 필요)
+  const [{ data: rfq, error }, { data: quote }, { data: events }] = await Promise.all([
+    supabase.from('quote_requests').select('*').eq('id', id).single(),
+    supabase
+      .from('quotes')
+      .select('*')
+      .eq('rfq_id', id)
+      .in('status', ['sent', 'accepted', 'rejected', 'expired'])
+      .single(),
+    supabase
+      .from('rfq_events')
+      .select('*')
+      .eq('rfq_id', id)
+      .eq('is_visible_to_dealer', true)
+      .order('created_at', { ascending: false }),
+  ])
 
   if (error || !rfq || rfq.dealer_id !== session.dealer.id) notFound()
-
-  // 견적서 조회 (draft 제외)
-  const { data: quote } = await supabase
-    .from('quotes')
-    .select('*')
-    .eq('rfq_id', id)
-    .in('status', ['sent', 'accepted', 'rejected', 'expired'])
-    .single()
-
-  // RFQ 이벤트 (거래처에 공개된 것만)
-  const { data: events } = await supabase
-    .from('rfq_events')
-    .select('*')
-    .eq('rfq_id', id)
-    .eq('is_visible_to_dealer', true)
-    .order('created_at', { ascending: false })
 
   return (
     <div className="flex flex-col gap-6">
