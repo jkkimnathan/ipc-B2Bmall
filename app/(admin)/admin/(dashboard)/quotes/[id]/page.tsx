@@ -48,28 +48,14 @@ export default async function AdminQuoteDetailPage({ params }: PageProps) {
   // 만료 자동 처리 (페이지 진입 시)
   await checkAndExpireQuote(id)
 
-  // RFQ + 거래처 정보
-  const { data: rfq, error } = await supabase
-    .from('quote_requests')
-    .select('*, dealers(company_name)')
-    .eq('id', id)
-    .single()
+  // RFQ/견적서/이벤트를 병렬 조회 (만료 처리 후, 모두 id만 필요)
+  const [{ data: rfq, error }, { data: quote }, { data: events }] = await Promise.all([
+    supabase.from('quote_requests').select('*, dealers(company_name)').eq('id', id).single(),
+    supabase.from('quotes').select('*').eq('rfq_id', id).single(),
+    supabase.from('rfq_events').select('*').eq('rfq_id', id).order('created_at', { ascending: false }),
+  ])
 
   if (error || !rfq) notFound()
-
-  // 기존 견적서
-  const { data: quote } = await supabase
-    .from('quotes')
-    .select('*')
-    .eq('rfq_id', id)
-    .single()
-
-  // RFQ 이벤트 (최신순)
-  const { data: events } = await supabase
-    .from('rfq_events')
-    .select('*')
-    .eq('rfq_id', id)
-    .order('created_at', { ascending: false })
 
   const st = rfqStatusLabel(rfq.status)
   const companyName = (rfq.dealers as { company_name: string } | null)?.company_name ?? '—'

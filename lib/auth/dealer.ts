@@ -4,6 +4,7 @@
  * 거래처 사용자 식별 방식: Supabase Auth user → dealer_users.auth_user_id 매칭
  * 서버 컴포넌트 및 서버 액션에서 사용.
  */
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { User } from '@supabase/supabase-js'
@@ -26,8 +27,11 @@ export interface DealerSession {
  * 4. dealers.status = 'active'
  *
  * 위 조건 중 하나라도 실패하면 null 반환.
+ *
+ * React cache()로 감싸 같은 요청(렌더 패스) 안에서는 한 번만 실행된다.
+ * 레이아웃과 페이지가 각각 requireDealer()를 호출해도 Supabase 왕복은 1회.
  */
-export async function getDealerSession(): Promise<DealerSession | null> {
+export const getDealerSession = cache(async (): Promise<DealerSession | null> => {
   try {
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -58,7 +62,7 @@ export async function getDealerSession(): Promise<DealerSession | null> {
   } catch {
     return null
   }
-}
+})
 
 /**
  * 거래처가 아니거나 비활성/정지면 /dealer/login으로 리다이렉트하는 가드

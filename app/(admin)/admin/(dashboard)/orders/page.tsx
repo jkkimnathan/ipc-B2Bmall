@@ -38,19 +38,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const period = sp.period ?? ''
   const sort = sp.sort ?? 'newest'
 
-  // 접수대기 카운트 (항상 필요)
-  const { count: submittedCount } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'submitted')
-
-  // 24시간 이상 미처리 접수건 카운트
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { count: overdueCount } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'submitted')
-    .lt('submitted_at', cutoff24h)
 
   // 발주 목록 쿼리 작성
   let query = supabase
@@ -103,7 +91,17 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
 
   query = query.limit(100)
 
-  const { data: orders } = await query
+  // 목록 + 접수대기/24시간 초과 카운트를 병렬 조회
+  const [{ data: orders }, { count: submittedCount }, { count: overdueCount }] =
+    await Promise.all([
+      query,
+      supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+      supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'submitted')
+        .lt('submitted_at', cutoff24h),
+    ])
 
   // 거래처명을 검색어로 추가 필터 (Supabase에서 join 검색이 제한적이므로 클라이언트 필터)
   let filteredOrders = orders ?? []

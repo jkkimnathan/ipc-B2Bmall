@@ -29,55 +29,50 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  // 발주서 + 거래처 정보
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*, dealers(id, company_name)')
-    .eq('id', id)
-    .single()
+  // 발주서/항목/이벤트를 병렬 조회 (모두 id만 필요)
+  const [{ data: order, error }, { data: items }, { data: events }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*, dealers(id, company_name)')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', id)
+      .order('pc_name_snapshot'),
+    supabase
+      .from('order_events')
+      .select('*')
+      .eq('order_id', id)
+      .order('created_at', { ascending: false }),
+  ])
 
   if (error || !order) notFound()
 
-  // 발주 항목
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', id)
-    .order('pc_name_snapshot')
-
-  // 담당자 정보
-  let dealerUserName = ''
-  if (order.dealer_user_id) {
-    const { data: dealerUser } = await supabase
-      .from('dealer_users')
-      .select('name, role')
-      .eq('id', order.dealer_user_id)
-      .single()
-    if (dealerUser) {
-      dealerUserName = `${dealerUser.name}${dealerUser.role ? ` ${dealerUser.role}` : ''}`
-    }
-  }
-
-  // 이벤트 이력
-  const { data: events } = await supabase
-    .from('order_events')
-    .select('*')
-    .eq('order_id', id)
-    .order('created_at', { ascending: false })
-
-  // 견적 기반 발주의 원본 견적 정보 조회
+  // 담당자 + 원본 견적은 위 결과에 의존 → 2차 병렬 조회
   const sourceQuoteIds = (items ?? [])
     .filter((item: OrderItem) => item.source_quote_id)
     .map((item: OrderItem) => item.source_quote_id!)
+
+  const [dealerUserRes, quotesRes] = await Promise.all([
+    order.dealer_user_id
+      ? supabase.from('dealer_users').select('name, role').eq('id', order.dealer_user_id).single()
+      : Promise.resolve({ data: null }),
+    sourceQuoteIds.length > 0
+      ? supabase.from('quotes').select('id, quote_no, rfq_id').in('id', sourceQuoteIds)
+      : Promise.resolve({ data: null }),
+  ])
+
+  let dealerUserName = ''
+  const dealerUser = dealerUserRes.data as { name: string; role: string | null } | null
+  if (dealerUser) {
+    dealerUserName = `${dealerUser.name}${dealerUser.role ? ` ${dealerUser.role}` : ''}`
+  }
+
   const sourceQuoteMap: Record<string, { quote_no: string; rfq_id: string }> = {}
-  if (sourceQuoteIds.length > 0) {
-    const { data: quotes } = await supabase
-      .from('quotes')
-      .select('id, quote_no, rfq_id')
-      .in('id', sourceQuoteIds)
-    for (const q of quotes ?? []) {
-      sourceQuoteMap[q.id] = { quote_no: q.quote_no, rfq_id: q.rfq_id }
-    }
+  for (const q of quotesRes.data ?? []) {
+    sourceQuoteMap[q.id] = { quote_no: q.quote_no, rfq_id: q.rfq_id }
   }
 
   const st = orderStatusLabel(order.status)

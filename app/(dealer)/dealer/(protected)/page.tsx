@@ -85,37 +85,43 @@ export default async function DealerDashboardPage() {
   const supabase = await createClient()
   const dealerId = session.dealer.id
 
-  // 통계 조회 (원본 로직 그대로)
-  const { count: activeOrders } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('dealer_id', dealerId)
-    .in('status', ['submitted', 'approved', 'in_production'])
-
-  const { count: pendingQuotes } = await supabase
-    .from('quote_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('dealer_id', dealerId)
-    .eq('status', 'submitted')
-
-  const { count: approvedQuotes } = await supabase
-    .from('quote_requests')
-    .select('*', { count: 'exact', head: true })
-    .eq('dealer_id', dealerId)
-    .in('status', ['quoted', 'accepted'])
-
-  // 이번 달 발주 합계
+  // 이번 달 시작일
   const firstDay = new Date()
   firstDay.setDate(1)
   firstDay.setHours(0, 0, 0, 0)
-  const { data: monthOrders } = await supabase
-    .from('orders')
-    .select('total_amount')
-    .eq('dealer_id', dealerId)
-    .gte('submitted_at', firstDay.toISOString())
+
+  // 통계 + 최근 활동을 전부 병렬 조회 (순차 대기 5회 → 1회)
+  const [
+    { count: activeOrders },
+    { count: pendingQuotes },
+    { count: approvedQuotes },
+    { data: monthOrders },
+    activities,
+  ] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('dealer_id', dealerId)
+      .in('status', ['submitted', 'approved', 'in_production']),
+    supabase
+      .from('quote_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('dealer_id', dealerId)
+      .eq('status', 'submitted'),
+    supabase
+      .from('quote_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('dealer_id', dealerId)
+      .in('status', ['quoted', 'accepted']),
+    supabase
+      .from('orders')
+      .select('total_amount')
+      .eq('dealer_id', dealerId)
+      .gte('submitted_at', firstDay.toISOString()),
+    getDealerRecentActivities(dealerId),
+  ])
 
   const monthTotal = monthOrders?.reduce((sum, o) => sum + (o.total_amount ?? 0), 0) ?? 0
-  const activities = await getDealerRecentActivities(dealerId)
 
   const cards = [
     {

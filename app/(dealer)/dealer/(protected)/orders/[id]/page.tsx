@@ -18,37 +18,26 @@ export default async function DealerOrderDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  // 발주서 조회
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // 발주서/항목/배송지/이벤트를 병렬 조회 (모두 id·dealer_id만 필요)
+  const [{ data: order, error }, { data: items }, { data: addresses }, { data: events }] =
+    await Promise.all([
+      supabase.from('orders').select('*').eq('id', id).single(),
+      supabase.from('order_items').select('*').eq('order_id', id).order('pc_name_snapshot'),
+      supabase
+        .from('dealer_addresses')
+        .select('*')
+        .eq('dealer_id', session.dealer.id)
+        .order('is_default', { ascending: false }),
+      supabase
+        .from('order_events')
+        .select('*')
+        .eq('order_id', id)
+        .eq('is_visible_to_dealer', true)
+        .order('created_at', { ascending: false }),
+    ])
 
-  // 본인 거래처가 아니면 notFound
+  // 본인 거래처가 아니면 notFound (RLS가 이미 차단하지만 이중 확인)
   if (error || !order || order.dealer_id !== session.dealer.id) notFound()
-
-  // 발주 항목
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', id)
-    .order('pc_name_snapshot')
-
-  // 배송지 목록 (수정용)
-  const { data: addresses } = await supabase
-    .from('dealer_addresses')
-    .select('*')
-    .eq('dealer_id', session.dealer.id)
-    .order('is_default', { ascending: false })
-
-  // 이벤트 이력 (거래처 공개분만 서버에서 필터)
-  const { data: events } = await supabase
-    .from('order_events')
-    .select('*')
-    .eq('order_id', id)
-    .eq('is_visible_to_dealer', true)
-    .order('created_at', { ascending: false })
 
   return (
     <div className="flex flex-col gap-6">
