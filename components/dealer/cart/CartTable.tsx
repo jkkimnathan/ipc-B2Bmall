@@ -45,10 +45,12 @@ export default function CartTable({ items }: Props) {
   )
   const [updating, setUpdating] = useState<string | null>(null)
 
-  const allSelected = selected.size === items.length && items.length > 0
+  // 전체선택은 구매 가능한(선택 가능한) 항목만 대상으로 한다
+  const selectableItems = items.filter((i) => i.product.available)
+  const allSelected = selectableItems.length > 0 && selected.size === selectableItems.length
   const toggleAll = () => {
     if (allSelected) setSelected(new Set())
-    else setSelected(new Set(items.map((i) => i.id)))
+    else setSelected(new Set(selectableItems.map((i) => i.id)))
   }
   const toggleOne = (id: string) => {
     const next = new Set(selected)

@@ -8,8 +8,16 @@ import { revalidatePath } from 'next/cache'
 import { requireDealer } from '@/lib/auth/dealer'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isValidEmail } from '@/lib/utils/format'
 
 const REVALIDATE_PATH = '/dealer/mypage'
+
+// 사업자등록증 허용 형식/크기
+const CERT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+const CERT_EXT_BY_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf',
+}
+const CERT_MAX_BYTES = 10 * 1024 * 1024
 
 /** 거래처 연락처/주소 수정 (주소만 변경 가능) */
 export async function updateMyDealer(formData: FormData) {
@@ -41,6 +49,17 @@ export async function updateBusinessCert(formData: FormData) {
   const file = formData.get('file') as File | null
   if (!file || file.size === 0) throw new Error('파일을 선택해주세요.')
 
+  // 서버측 파일 검증 (형식/크기). contentType 은 클라이언트 값을 신뢰하지 않고
+  // 허용 목록에서 확정한다.
+  if (!CERT_ALLOWED_TYPES.includes(file.type)) {
+    throw new Error('이미지(JPG/PNG/WebP) 또는 PDF 파일만 업로드할 수 있습니다.')
+  }
+  if (file.size > CERT_MAX_BYTES) {
+    throw new Error('파일 크기는 10MB 이하만 업로드할 수 있습니다.')
+  }
+  const safeType = file.type
+  const ext = CERT_EXT_BY_TYPE[safeType]
+
   // 기존 파일 삭제 (있으면)
   if (session.dealer.business_cert_url) {
     await supabase.storage
@@ -48,12 +67,11 @@ export async function updateBusinessCert(formData: FormData) {
       .remove([session.dealer.business_cert_url])
   }
 
-  const ext = file.name.split('.').pop() ?? 'pdf'
   const path = `certs/${session.dealer.id}/${Date.now()}.${ext}`
 
   const { error: uploadError } = await supabase.storage
     .from('dealer-documents')
-    .upload(path, file, { contentType: file.type })
+    .upload(path, file, { contentType: safeType })
 
   if (uploadError) throw new Error('업로드 실패: ' + uploadError.message)
 
@@ -83,11 +101,13 @@ export async function requestAddDealerUser(formData: FormData) {
 
   if (!name?.trim()) throw new Error('담당자명을 입력해주세요.')
   if (!email?.trim()) throw new Error('이메일을 입력해주세요.')
+  if (!isValidEmail(email)) throw new Error('올바른 이메일 형식이 아닙니다.')
 
-  const supabase = await createClient()
+  // 쓰기는 service_role 로 수행 (거래처 직접 쓰기 정책 제거). 전역 중복 확인도
+  // service_role 이어야 타 거래처에 이미 쓰인 이메일까지 감지할 수 있다.
+  const admin = createAdminClient()
 
-  // 이메일 중복 체크
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from('dealer_users')
     .select('id')
     .eq('email', email!.trim())
@@ -95,7 +115,7 @@ export async function requestAddDealerUser(formData: FormData) {
 
   if (existing) throw new Error('이미 등록된 이메일입니다.')
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('dealer_users')
     .insert({
       dealer_id: session.dealer.id,
@@ -125,10 +145,10 @@ export async function deactivateMyDealerUser(userId: string) {
     throw new Error('본인 계정은 비활성화할 수 없습니다.')
   }
 
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
   // 같은 거래처 소속인지 확인
-  const { data: target } = await supabase
+  const { data: target } = await admin
     .from('dealer_users')
     .select('dealer_id')
     .eq('id', userId)
@@ -138,7 +158,7 @@ export async function deactivateMyDealerUser(userId: string) {
     throw new Error('권한이 없습니다.')
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('dealer_users')
     .update({ is_active: false })
     .eq('id', userId)

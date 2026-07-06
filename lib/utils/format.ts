@@ -4,24 +4,90 @@
  */
 import type { PartSlot } from '@/types/database'
 
-/** 원화 포맷 (1234567 → "1,234,567원") */
-export function formatKRW(amount: number): string {
-  return amount.toLocaleString('ko-KR') + '원'
+// ============================================================
+// 시간대 / 입력 검증 공용 헬퍼
+// 한국 B2B 서비스는 UTC 인프라에 배포되더라도 모든 날짜 경계·표시를
+// KST(Asia/Seoul) 기준으로 계산해야 한다.
+// ============================================================
+const KST = 'Asia/Seoul'
+
+/** KST 기준 오늘 날짜 (YYYY-MM-DD) */
+export function kstToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: KST, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
 }
 
-/** 날짜+시간 포맷 (2026-04-08T12:34:56Z → "2026.04.08 12:34") */
+/** KST 기준 날짜 문자열 (YYYYMMDD) */
+export function kstDateCompact(date: Date = new Date()): string {
+  return kstTodayFrom(date).replace(/-/g, '')
+}
+
+function kstTodayFrom(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: KST, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date)
+}
+
+/** KST 기준 시:분:초 (HHMMSS) */
+export function kstTimeCompact(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: KST, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(date).replace(/:/g, '')
+}
+
+/**
+ * FormData 값을 안전한 정수로 파싱한다.
+ * NaN/Infinity/소수/범위밖이면 null 을 반환하여 호출부에서 검증 실패로 처리.
+ */
+export function toSafeInt(
+  value: FormDataEntryValue | string | number | null | undefined,
+  opts?: { min?: number; max?: number },
+): number | null {
+  if (value === null || value === undefined) return null
+  const n = typeof value === 'number' ? value : Number(String(value).trim())
+  if (!Number.isInteger(n)) return null
+  const min = opts?.min ?? 0
+  const max = opts?.max ?? Number.MAX_SAFE_INTEGER
+  if (n < min || n > max) return null
+  return n
+}
+
+/**
+ * PostgREST .or()/.ilike() 검색어에서 필터 구문 메타문자를 제거한다.
+ * 쉼표/괄호는 or 그룹 구조를 깨뜨릴 수 있으므로 공백으로 치환하고 길이를 제한한다.
+ */
+export function sanitizeSearch(q: string | null | undefined): string {
+  if (!q) return ''
+  return q.replace(/[,()]/g, ' ').trim().slice(0, 100)
+}
+
+/** 이메일 형식 검증 (단순 RFC 근사) */
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
+/** 원화 포맷 (1234567 → "1,234,567원"). null/소수 안전 처리. */
+export function formatKRW(amount: number | null | undefined): string {
+  const n = typeof amount === 'number' && Number.isFinite(amount) ? Math.round(amount) : 0
+  return n.toLocaleString('ko-KR') + '원'
+}
+
+/** 날짜+시간 포맷 (KST 기준, "2026.04.08 12:34") */
 export function formatDateTime(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleString('ko-KR', {
+    timeZone: KST,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   })
 }
 
-/** 날짜 포맷 (2026-04-08T12:34:56Z → "2026.04.08") */
+/** 날짜 포맷 (KST 기준, "2026.04.08") */
 export function formatDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('ko-KR', {
+    timeZone: KST,
     year: 'numeric', month: '2-digit', day: '2-digit',
   })
 }
@@ -259,13 +325,11 @@ export function canEditRfq(rfq: { status: string }): boolean {
   return rfq.status === 'submitted'
 }
 
-/** RFQ 번호 생성 (RFQ-YYYYMMDD-HHMMSS-XXXX) */
+/** RFQ 번호 생성 (RFQ-YYYYMMDD-HHMMSS-XXXX, KST 기준) */
 export function generateRfqNo(): string {
   const now = new Date()
-  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '')
   const rand = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
-  return `RFQ-${date}-${time}-${rand}`
+  return `RFQ-${kstDateCompact(now)}-${kstTimeCompact(now)}-${rand}`
 }
 
 /** 용도 한글 라벨 */
@@ -294,10 +358,13 @@ export function quoteStatusLabel(status: string): { label: string; color: string
   return map[status] ?? { label: status, color: 'gray' }
 }
 
-/** 유효기한 계산 (오늘 + N일, YYYY-MM-DD) */
+/** 유효기한 계산 (KST 오늘 + N일, YYYY-MM-DD). 한국은 DST 없음. */
 export function calcValidUntil(days: number): string {
-  const d = new Date(Date.now() + days * 86400000)
-  return d.toISOString().split('T')[0]
+  const n = Number.isFinite(days) ? Math.trunc(days) : 7
+  const [y, m, d] = kstToday().split('-').map(Number)
+  const base = new Date(Date.UTC(y, m - 1, d))
+  base.setUTCDate(base.getUTCDate() + n)
+  return base.toISOString().slice(0, 10)
 }
 
 /** 부품 슬롯 키 → 한글 라벨 */

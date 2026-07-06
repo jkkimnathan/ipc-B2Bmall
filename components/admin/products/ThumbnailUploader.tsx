@@ -5,7 +5,7 @@
  * 기존 URL과 새로 선택된 파일을 함께 관리한다.
  * 첫 번째 슬롯에 "대표" 라벨을 표시한다.
  */
-import { useRef } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { X, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -27,6 +27,18 @@ export default function ThumbnailUploader({
 }: ThumbnailUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const totalCount = value.length + pendingFiles.length
+
+  // 새 파일별 미리보기 URL을 파일 목록 변경 시에만 생성 (렌더마다 재생성 방지)
+  const previewUrls = useMemo(
+    () => pendingFiles.map((file) => URL.createObjectURL(file)),
+    [pendingFiles]
+  )
+  // 목록 변경/언마운트 시 이전 blob URL 해제 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [previewUrls])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -94,10 +106,10 @@ export default function ThumbnailUploader({
         ))}
 
         {/* 새 파일 미리보기 */}
-        {pendingFiles.map((file, i) => (
+        {pendingFiles.map((_, i) => (
           <div key={`file-${i}`} className="relative">
             <img
-              src={URL.createObjectURL(file)}
+              src={previewUrls[i]}
               alt={`새 이미지 ${i + 1}`}
               className="size-[120px] rounded-lg border bg-zinc-50 object-contain p-2"
             />

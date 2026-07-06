@@ -39,6 +39,9 @@ export default async function DealerOrderDetailPage({ params }: PageProps) {
   // 본인 거래처가 아니면 notFound (RLS가 이미 차단하지만 이중 확인)
   if (error || !order || order.dealer_id !== session.dealer.id) notFound()
 
+  // 내부 메모(admin_memo)는 거래처 클라이언트로 직렬화되지 않도록 제거
+  const safeOrder = { ...(order as Order), admin_memo: null }
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -50,7 +53,7 @@ export default async function DealerOrderDetailPage({ params }: PageProps) {
       </Link>
 
       <OrderDetailClient
-        order={order as Order}
+        order={safeOrder}
         items={(items ?? []) as OrderItem[]}
         addresses={(addresses ?? []) as DealerAddress[]}
         events={(events ?? []) as OrderEvent[]}

@@ -29,6 +29,7 @@ interface Props {
   rfq: QuoteRequest
   quote: Quote | null
   events: RfqEvent[]
+  attachments?: { url: string; name: string }[]
 }
 
 function statusVariant(status: string) {
@@ -37,7 +38,7 @@ function statusVariant(status: string) {
   return 'default' as const
 }
 
-export default function QuoteDetailClient({ rfq, quote, events }: Props) {
+export default function QuoteDetailClient({ rfq, quote, events, attachments = [] }: Props) {
   const router = useRouter()
   const [showCancel, setShowCancel] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -161,30 +162,31 @@ export default function QuoteDetailClient({ rfq, quote, events }: Props) {
         </Card>
       )}
 
-      {/* 첨부파일 */}
-      {rfq.attachment_urls && rfq.attachment_urls.length > 0 && (
+      {/* 첨부파일 (비공개 버킷 signed URL) */}
+      {attachments.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">첨부파일</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {rfq.attachment_urls.map((url, i) => {
-                const fileName = decodeURIComponent(url.split('/').pop() ?? '').replace(/^\d+_/, '')
-                return (
-                  <li key={i} className="flex items-center gap-2">
-                    <FileDown className="size-4 text-zinc-400" />
+              {attachments.map((att, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <FileDown className="size-4 text-zinc-400" />
+                  {att.url ? (
                     <a
-                      href={url}
+                      href={att.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-blue-600 hover:underline"
                     >
-                      {fileName}
+                      {att.name}
                     </a>
-                  </li>
-                )
-              })}
+                  ) : (
+                    <span className="text-sm text-zinc-400">{att.name} (열람 불가)</span>
+                  )}
+                </li>
+              ))}
             </ul>
           </CardContent>
         </Card>

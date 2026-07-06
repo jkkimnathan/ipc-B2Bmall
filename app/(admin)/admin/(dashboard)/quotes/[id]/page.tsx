@@ -10,6 +10,7 @@ import { ArrowLeft, FileDown, CheckCircle, XCircle, Clock, Package } from 'lucid
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { checkAndExpireQuote } from '@/lib/rfq/autoExpire'
+import { signRfqAttachments } from '@/lib/storage/signed'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import SpecSlotInput from '@/components/shared/SpecSlotInput'
@@ -60,6 +61,9 @@ export default async function AdminQuoteDetailPage({ params }: PageProps) {
   const st = rfqStatusLabel(rfq.status)
   const companyName = (rfq.dealers as { company_name: string } | null)?.company_name ?? '—'
   const editable = isQuoteEditable(rfq.status, quote?.status)
+
+  // 첨부파일은 스토리지 경로로 저장되며 rfq-attachments 버킷은 비공개이므로 서명 URL 생성
+  const signedAttachments = await signRfqAttachments(rfq.attachment_urls ?? [])
 
   // 거절 사유 (이벤트에서 추출)
   const rejectionEvent = (events ?? []).find(
@@ -176,29 +180,32 @@ export default async function AdminQuoteDetailPage({ params }: PageProps) {
           )}
 
           {/* 첨부파일 */}
-          {rfq.attachment_urls && rfq.attachment_urls.length > 0 && (
+          {signedAttachments.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">첨부파일</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {rfq.attachment_urls.map((url: string, i: number) => {
-                    const fileName = decodeURIComponent(url.split('/').pop() ?? '').replace(/^\d+_/, '')
-                    return (
-                      <li key={i} className="flex items-center gap-2">
-                        <FileDown className="size-4 text-zinc-400" />
+                  {signedAttachments.map((att, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <FileDown className="size-4 text-zinc-400" />
+                      {att.url ? (
                         <a
-                          href={url}
+                          href={att.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-blue-600 hover:underline"
                         >
-                          {fileName}
+                          {att.name}
                         </a>
-                      </li>
-                    )
-                  })}
+                      ) : (
+                        <span className="text-sm text-zinc-400" title="첨부파일을 불러올 수 없습니다.">
+                          {att.name}
+                        </span>
+                      )}
+                    </li>
+                  ))}
                 </ul>
               </CardContent>
             </Card>

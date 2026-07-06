@@ -15,6 +15,7 @@ import { reserveRefurbStock, restoreRefurbStock, restoreRefurbStockForOrder } fr
 export async function cancelOrder(orderId: string) {
   const session = await requireDealer()
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   const { data: order } = await supabase
     .from('orders')
@@ -31,8 +32,8 @@ export async function cancelOrder(orderId: string) {
   }
 
   // 조건부 전환(CAS): submitted 상태일 때만 취소. 동시 요청 시 한 건만 성공하여
-  // 재고 복원이 중복 실행되는 것을 방지한다.
-  const { data: updated, error } = await supabase
+  // 재고 복원이 중복 실행되는 것을 방지한다. (거래처 쓰기 정책 제거 — service_role)
+  const { data: updated, error } = await admin
     .from('orders')
     .update({ status: 'canceled' })
     .eq('id', orderId)
@@ -43,7 +44,10 @@ export async function cancelOrder(orderId: string) {
   if (!updated?.length) throw new Error('이미 처리된 발주입니다.')
 
   // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
-  await restoreRefurbStockForOrder(orderId)
+  const restored = await restoreRefurbStockForOrder(orderId)
+  if (!restored) {
+    console.error('[cancelOrder] 재고 복원 일부 실패 — 수동 확인 필요:', { orderId })
+  }
 
   await logOrderEvent({
     orderId,
@@ -159,10 +163,14 @@ export async function updateOrder(orderId: string, formData: FormData) {
   for (const pid of allPartIds) {
     const delta = (finalQtyByPart.get(pid) ?? 0) - (oldQtyByPart.get(pid) ?? 0)
     if (delta > 0) {
-      const ok = await reserveRefurbStock(admin, pid, delta)
-      if (!ok) {
+      const res = await reserveRefurbStock(admin, pid, delta)
+      if (!res.ok) {
         await rollbackDeltas()
-        throw new Error('리퍼 부품의 재고가 부족하여 수량을 늘릴 수 없습니다.')
+        throw new Error(
+          res.reason === 'insufficient'
+            ? '리퍼 부품의 재고가 부족하여 수량을 늘릴 수 없습니다.'
+            : '재고 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        )
       }
       appliedDeltas.push({ partId: pid, delta })
     } else if (delta < 0) {
@@ -171,8 +179,8 @@ export async function updateOrder(orderId: string, formData: FormData) {
     }
   }
 
-  // 발주서 업데이트
-  const { error: orderError } = await supabase
+  // 발주서 업데이트 (거래처 쓰기 정책 제거 — service_role)
+  const { error: orderError } = await admin
     .from('orders')
     .update({
       total_amount: totalAmount,
@@ -198,7 +206,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
   // (삭제 → 삽입 순서였다면 삽입 실패 시 항목이 0개인 발주가 남는다)
   const oldItemIds = (existingItems ?? []).map((i) => i.id as string)
 
-  const { data: insertedItems, error: itemsError } = await supabase
+  const { data: insertedItems, error: itemsError } = await admin
     .from('order_items')
     .insert(finalItems)
     .select('id')
@@ -209,7 +217,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
   }
 
   if (oldItemIds.length > 0) {
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await admin
       .from('order_items')
       .delete()
       .in('id', oldItemIds)
@@ -218,7 +226,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
       // 새로 넣은 항목 제거로 원상 복구
       const newIds = (insertedItems ?? []).map((i) => i.id as string)
       if (newIds.length > 0) {
-        await supabase.from('order_items').delete().in('id', newIds)
+        await admin.from('order_items').delete().in('id', newIds)
       }
       await rollbackDeltas()
       throw new Error('항목 저장 실패: ' + deleteError.message)

@@ -35,13 +35,16 @@ export default function ProductDetailClient({ product }: Props) {
   const isOutOfStock = product.stock_status === 'out_of_stock'
   const thumbnails = product.thumbnail_urls ?? []
 
-  const handleAdd = async () => {
+  /** 장바구니 담기. 성공 여부를 반환한다 (바로 발주 시 실패하면 이동하지 않기 위함). */
+  const handleAdd = async (): Promise<boolean> => {
     setAdding(true)
     try {
       await addToCart(product.id, qty)
       toast.success(`${product.name} ${qty}대를 장바구니에 담았습니다.`)
+      return true
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '실패')
+      return false
     } finally {
       setAdding(false)
     }
@@ -137,8 +140,8 @@ export default function ProductDetailClient({ product }: Props) {
                 className="flex-1"
                 disabled={isOutOfStock || adding}
                 onClick={async () => {
-                  await handleAdd()
-                  router.push('/dealer/cart')
+                  const ok = await handleAdd()
+                  if (ok) router.push('/dealer/cart')
                 }}
               >
                 바로 발주

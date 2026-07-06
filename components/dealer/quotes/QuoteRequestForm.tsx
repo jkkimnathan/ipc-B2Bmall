@@ -181,11 +181,9 @@ export default function QuoteRequestForm({ addresses, dealerId, initialData }: P
         continue
       }
 
-      const { data: urlData } = supabase.storage
-        .from('rfq-attachments')
-        .getPublicUrl(path)
-
-      newUrls.push(urlData.publicUrl)
+      // 비공개 버킷이므로 public URL 이 아니라 "경로"를 저장한다.
+      // 조회 시 서버에서 signed URL 로 변환한다.
+      newUrls.push(path)
     }
 
     if (newUrls.length > 0) {

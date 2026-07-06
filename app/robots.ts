@@ -1,8 +1,8 @@
 import type { MetadataRoute } from 'next'
 
-/** B2B 비공개 몰 — 모든 크롤러 차단 */
+/** 공개 랜딩 페이지는 색인 허용, 관리자/거래처 비공개 영역은 차단 */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: '*', disallow: '/' },
+    rules: { userAgent: '*', allow: '/', disallow: ['/admin', '/dealer'] },
   }
 }

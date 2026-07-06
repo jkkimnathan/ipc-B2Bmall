@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { generateTempPassword } from '@/lib/utils/format'
+import { generateTempPassword, isValidEmail, isValidBusinessNo } from '@/lib/utils/format'
 import { sendEmail } from '@/lib/email/send'
 import { getSiteUrl } from '@/lib/email/helpers'
 import DealerApprovedEmail from '@/components/emails/DealerApprovedEmail'
@@ -29,6 +29,12 @@ export async function createDealerWithUser(formData: FormData): Promise<{
   await requireAdmin()
   const supabase = await createClient()
   const adminSupabase = createAdminClient()
+
+  // 입력 검증 (INSERT 전에 수행)
+  const contactEmailInput = (formData.get('contact_email') as string) || ''
+  const businessNoInput = (formData.get('business_no') as string) || ''
+  if (!isValidEmail(contactEmailInput)) throw new Error('담당자 이메일 주소가 올바르지 않습니다.')
+  if (!isValidBusinessNo(businessNoInput)) throw new Error('사업자번호가 올바르지 않습니다.')
 
   // 1. 거래처 INSERT
   const { data: dealer, error: dealerError } = await supabase
@@ -87,6 +93,9 @@ export async function createDealerWithUser(formData: FormData): Promise<{
   })
 
   if (userError) {
+    // 롤백: 생성된 Auth 사용자와 거래처를 모두 제거 (고아 계정/거래처 방지)
+    await adminSupabase.auth.admin.deleteUser(authData.user.id)
+    await supabase.from('dealers').delete().eq('id', dealer.id)
     throw new Error('담당자 정보 저장 실패: ' + userError.message)
   }
 
@@ -119,8 +128,8 @@ export async function approveDealer(dealerId: string): Promise<{
   if (dealer.status !== 'pending') throw new Error('승인대기 상태가 아닙니다.')
 
   // 이미 담당자 계정이 있는지 확인
-  const existingUsers = dealer.dealer_users as { id: string; auth_user_id: string | null; email: string | null }[]
-  const primaryUser = existingUsers?.[0]
+  const existingUsers = dealer.dealer_users as { id: string; auth_user_id: string | null; email: string | null; is_primary?: boolean }[]
+  const primaryUser = existingUsers?.find((u) => u.is_primary) ?? existingUsers?.[0]
 
   if (!primaryUser) throw new Error('담당자 정보가 없습니다. 거래처 정보를 확인해주세요.')
 
@@ -140,10 +149,16 @@ export async function approveDealer(dealerId: string): Promise<{
   if (authError) throw new Error('계정 생성 실패: ' + authError.message)
 
   // dealer_users에 auth_user_id 업데이트
-  await supabase
+  const { error: linkError } = await supabase
     .from('dealer_users')
     .update({ auth_user_id: authData.user.id, login_id: loginEmail, is_primary: true, is_active: true })
     .eq('id', primaryUser.id)
+
+  if (linkError) {
+    // 계정 연결 실패 시 방금 만든 Auth 사용자 제거 (연결되지 않은 계정에 자격증명 발송 방지)
+    await adminSupabase.auth.admin.deleteUser(authData.user.id)
+    throw new Error('담당자 계정 연결 실패: ' + linkError.message)
+  }
 
   // 거래처 상태 변경
   const { error: updateError } = await supabase
@@ -151,7 +166,11 @@ export async function approveDealer(dealerId: string): Promise<{
     .update({ status: 'active', approved_at: new Date().toISOString(), rejection_reason: null })
     .eq('id', dealerId)
 
-  if (updateError) throw new Error('승인 처리 실패: ' + updateError.message)
+  if (updateError) {
+    // 상태 변경 실패 시 방금 만든 Auth 사용자 제거
+    await adminSupabase.auth.admin.deleteUser(authData.user.id)
+    throw new Error('승인 처리 실패: ' + updateError.message)
+  }
 
   revalidatePath(REVALIDATE_PATH)
 

@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react'
 import { requireDealer } from '@/lib/auth/dealer'
 import { createClient } from '@/lib/supabase/server'
 import { checkAndExpireQuote } from '@/lib/rfq/autoExpire'
+import { signRfqAttachments } from '@/lib/storage/signed'
 import QuoteDetailClient from '@/components/dealer/quotes/QuoteDetailClient'
 import type { QuoteRequest, Quote, RfqEvent } from '@/types/database'
 
@@ -41,6 +42,12 @@ export default async function DealerQuoteDetailPage({ params }: PageProps) {
 
   if (error || !rfq || rfq.dealer_id !== session.dealer.id) notFound()
 
+  // 첨부파일은 비공개 버킷의 signed URL 로 변환하여 전달
+  const attachments = await signRfqAttachments((rfq.attachment_urls as string[]) ?? [])
+
+  // 내부 메모(admin_memo)는 거래처 클라이언트로 직렬화되지 않도록 제거
+  const safeQuote = quote ? { ...(quote as Quote), admin_memo: null } : null
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -53,8 +60,9 @@ export default async function DealerQuoteDetailPage({ params }: PageProps) {
 
       <QuoteDetailClient
         rfq={rfq as QuoteRequest}
-        quote={(quote as Quote) ?? null}
+        quote={safeQuote}
         events={(events ?? []) as RfqEvent[]}
+        attachments={attachments.map((a) => ({ url: a.url, name: a.name }))}
       />
     </div>
   )

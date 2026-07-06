@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table'
 import AdminRfqFilters from '@/components/admin/quotes/AdminRfqFilters'
 import {
-  formatDateTime, formatRelativeTime, rfqStatusLabel, purposeLabel,
+  formatDateTime, formatRelativeTime, rfqStatusLabel, purposeLabel, sanitizeSearch,
 } from '@/lib/utils/format'
 
 interface PageProps {
@@ -45,8 +45,9 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
     query = query.eq('status', statusFilter)
   }
 
-  if (q) {
-    query = query.or(`title.ilike.%${q}%,rfq_no.ilike.%${q}%`)
+  const safeQ = sanitizeSearch(q)
+  if (safeQ) {
+    query = query.or(`title.ilike.%${safeQ}%,rfq_no.ilike.%${safeQ}%`)
   }
 
   if (period === 'today') {

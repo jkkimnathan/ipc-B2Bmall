@@ -73,11 +73,8 @@ export default function DealerLoginPage() {
         return
       }
 
-      // 5. last_login_at 업데이트
-      await supabase
-        .from('dealer_users')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('id', dealerUser.id)
+      // 5. last_login_at 업데이트 (본인 행만 갱신하는 정의자 권한 RPC)
+      await supabase.rpc('touch_last_login')
 
       // 6. 대시보드로 이동
       router.push('/dealer')

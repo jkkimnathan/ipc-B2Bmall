@@ -9,26 +9,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logOrderEvent } from '@/lib/orders/events'
 import { formatKRW, formatDateTime } from '@/lib/utils/format'
+import { generateOrderNo } from '@/lib/orders/orderNo'
 import { sendEmail } from '@/lib/email/send'
 import { getAdminNotificationEmails } from '@/lib/email/settings'
 import { getSiteUrl } from '@/lib/email/helpers'
 import NewOrderToAdminEmail from '@/components/emails/NewOrderToAdminEmail'
-
-/** 발주번호 생성: PO-YYYYMMDD-NNNN */
-async function generateOrderNo(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
-  const today = new Date()
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-
-  // 오늘 발주 수 카운트
-  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
-  const { count } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .gte('submitted_at', startOfDay)
-
-  const seq = String((count ?? 0) + 1).padStart(4, '0')
-  return `PO-${dateStr}-${seq}`
-}
 
 export async function submitOrder(formData: FormData): Promise<{
   orderId: string
@@ -116,11 +101,11 @@ export async function submitOrder(formData: FormData): Promise<{
     reserved.push({ partId: item.refId, qty: item.quantity })
   }
 
-  // 발주번호 생성
-  const orderNo = await generateOrderNo(supabase)
+  // 발주번호 생성 (전역 원자적 채번)
+  const orderNo = await generateOrderNo(admin)
 
-  // 발주서 INSERT
-  const { data: order, error: orderError } = await supabase
+  // 발주서 INSERT (거래처 쓰기 정책 제거 — service_role 로 기록)
+  const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
       order_no: orderNo,
@@ -160,7 +145,7 @@ export async function submitOrder(formData: FormData): Promise<{
     subtotal: item.price * item.quantity,
   }))
 
-  const { error: itemsError } = await supabase
+  const { error: itemsError } = await admin
     .from('order_items')
     .insert(orderItems)
 
