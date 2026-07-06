@@ -11,6 +11,10 @@ import {
   Wrench,
   Monitor,
   Code,
+  Cpu,
+  Sparkles,
+  RefreshCw,
+  BadgeCheck,
 } from 'lucide-react'
 import ScrollReveal from '@/components/landing/ScrollReveal'
 
@@ -90,8 +94,8 @@ export default function LandingPage() {
             <h2 className="font-bold text-[#1d1d1f] mb-5" style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', lineHeight: 1.12 }}>
               당신의 업무에 맞는<br />정확한 PC.
             </h2>
-            <p className="text-[#86868b] text-lg max-w-[48ch] mx-auto leading-relaxed">
-              Business, Pro, Master — 세 가지 라인업으로 불필요한 사양 낭비 없이 정확한 성능을 제공합니다.
+            <p className="text-[#86868b] text-lg max-w-[52ch] mx-auto leading-relaxed">
+              Business, Pro, Master, 그리고 AI — 네 가지 라인업으로 불필요한 사양 낭비 없이 정확한 성능을 제공합니다.
             </p>
           </div>
 
@@ -155,6 +159,48 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center justify-center p-8">
                   <Image src="/landing/master_01.png" alt="iPC Master" width={600} height={400} className="rounded-2xl w-full object-cover" />
+                </div>
+              </div>
+            </div>
+
+            {/* iPC AI — NEW */}
+            <div className="apple-card reveal md:col-span-2 relative overflow-hidden bg-[#0a0a0f] text-white">
+              {/* AI 그라디언트 배경 */}
+              <div
+                className="absolute inset-0 opacity-90"
+                style={{ background: 'radial-gradient(120% 120% at 15% 0%, #1e1b4b 0%, #0a0a0f 45%), radial-gradient(90% 90% at 100% 100%, rgba(124,58,237,0.35) 0%, transparent 60%)' }}
+                aria-hidden
+              />
+              <div className="relative grid md:grid-cols-2 items-center">
+                <div className="p-10 md:p-14">
+                  <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur text-white text-xs font-semibold px-3 py-1 rounded-full mb-6 border border-white/15">
+                    <Sparkles className="size-3.5" /> NEW · 온디바이스 AI
+                  </div>
+                  <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">iPC AI</h3>
+                  <p className="text-white/70 leading-relaxed mb-8">
+                    NPU를 탑재한 차세대 AI PC. 클라우드 없이 기기 안에서 생성형 AI와 실시간 추론을 처리해, 보안과 속도를 동시에 잡았습니다.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {['NPU 탑재 (40+ TOPS)', 'Copilot+ PC 지원', '온디바이스 LLM 추론', '데이터 유출 없는 로컬 AI'].map((t) => (
+                      <span key={t} className="bg-white/10 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white font-medium">{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="relative flex items-center justify-center p-10 md:p-14">
+                  {/* NPU 칩 비주얼 (CSS/SVG 구성) */}
+                  <div className="relative aspect-square w-full max-w-[320px]">
+                    <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-violet-500/30 to-indigo-600/10 blur-2xl" aria-hidden />
+                    <div className="relative h-full w-full rounded-[2rem] border border-white/10 bg-white/[0.03] backdrop-blur flex items-center justify-center">
+                      <div className="relative flex items-center justify-center">
+                        <div className="absolute size-40 rounded-full border border-violet-400/20 animate-pulse" aria-hidden />
+                        <div className="absolute size-28 rounded-full border border-indigo-400/30" aria-hidden />
+                        <div className="relative size-20 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-[0_0_40px_rgba(124,58,237,0.6)]">
+                          <Cpu className="size-9 text-white" />
+                        </div>
+                      </div>
+                      <span className="absolute bottom-5 text-[11px] font-mono tracking-widest text-white/40">NEURAL PROCESSING UNIT</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,6 +409,8 @@ export default function LandingPage() {
                 <li><a href="#lineup" className="hover:text-[#1d1d1f] transition-colors duration-300">iPC Business</a></li>
                 <li><a href="#lineup" className="hover:text-[#1d1d1f] transition-colors duration-300">iPC Pro</a></li>
                 <li><a href="#lineup" className="hover:text-[#1d1d1f] transition-colors duration-300">iPC Master</a></li>
+                <li><a href="#lineup" className="hover:text-[#1d1d1f] transition-colors duration-300">iPC AI</a></li>
+                <li><a href="#refurb" className="hover:text-[#1d1d1f] transition-colors duration-300">리퍼 부품</a></li>
               </ul>
             </div>
             <div>

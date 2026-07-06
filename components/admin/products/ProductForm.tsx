@@ -238,6 +238,7 @@ export default function ProductForm({ mode, initialData }: ProductFormProps) {
                   <SelectItem value="business">iPC Business</SelectItem>
                   <SelectItem value="pro">iPC Pro</SelectItem>
                   <SelectItem value="master">iPC Master</SelectItem>
+                  <SelectItem value="aipc">iPC AI</SelectItem>
                 </SelectContent>
               </Select>
             </div>

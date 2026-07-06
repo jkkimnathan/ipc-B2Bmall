@@ -10,8 +10,8 @@
 /** 거래처 상태: pending(승인대기), active(활성), suspended(정지) */
 export type DealerStatus = 'pending' | 'active' | 'suspended'
 
-/** PC 카테고리: Business / Pro / Master */
-export type PcCategory = 'business' | 'pro' | 'master'
+/** PC 카테고리: Business / Pro / Master / AiPC */
+export type PcCategory = 'business' | 'pro' | 'master' | 'aipc'
 
 /** 재고 상태: in_stock(재고있음), low_stock(재고부족), out_of_stock(품절), made_to_order(주문생산) */
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'made_to_order'

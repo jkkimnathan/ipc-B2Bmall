@@ -32,6 +32,7 @@ export function categoryLabel(category: string): string {
     business: 'iPC Business',
     pro: 'iPC Pro',
     master: 'iPC Master',
+    aipc: 'iPC AI',
   }
   return map[category] ?? category
 }
