@@ -13,13 +13,20 @@ const SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
 /** 알림 설정 조회 */
 export async function getNotificationSettings(): Promise<NotificationSettings> {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('notification_settings')
     .select('*')
     .eq('id', SETTINGS_ID)
-    .single()
+    .maybeSingle()
 
   if (data) return data as NotificationSettings
+
+  // 행이 실제로 없는 경우(null, error 없음)에만 기본값을 사용한다.
+  // 쿼리 오류(일시적 장애 등)일 때 기본값(모든 토글 ON)으로 fail-open 하면
+  // 관리자가 꺼둔 알림이 다시 발송되므로, 오류는 로그로 남긴다.
+  if (error) {
+    console.error('[getNotificationSettings] 설정 조회 오류 — 기본값 사용:', error.message)
+  }
 
   // 기본값 반환
   return {
@@ -36,7 +43,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
     admin_new_rfq: true,
     admin_notification_emails: null,
     sender_name: 'iPC Mall',
-    sender_email: 'noreply@ipcb2bmall.com',
+    sender_email: 'noreply@intechonline.kr',
     updated_at: new Date().toISOString(),
   }
 }

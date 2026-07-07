@@ -14,7 +14,7 @@ import {
 import AdminOrderFilters from '@/components/admin/orders/AdminOrderFilters'
 import {
   formatKRW, formatDateTime, formatDate, formatRelativeTime,
-  orderStatusLabel,
+  orderStatusLabel, sanitizeSearch,
 } from '@/lib/utils/format'
 
 interface PageProps {
@@ -57,9 +57,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   }
 
   // 검색 (발주번호, 거래처명, 수령인)
-  if (q) {
+  const safeQ = sanitizeSearch(q)
+  if (safeQ) {
     query = query.or(
-      `order_no.ilike.%${q}%,shipping_recipient.ilike.%${q}%`
+      `order_no.ilike.%${safeQ}%,shipping_recipient.ilike.%${safeQ}%`
     )
   }
 

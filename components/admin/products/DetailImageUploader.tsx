@@ -4,7 +4,7 @@
  * 상세 이미지 업로더 (1장)
  * 긴 세로 이미지를 업로드하며, 드래그앤드롭도 지원한다.
  */
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { X, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -58,10 +58,20 @@ export default function DetailImageUploader({
     onChange(null, null)
   }
 
+  // 새 파일 미리보기 URL을 파일 변경 시에만 생성 (렌더마다 재생성 방지)
+  const pendingUrl = useMemo(
+    () => (pendingFile ? URL.createObjectURL(pendingFile) : null),
+    [pendingFile]
+  )
+  // 파일 변경/언마운트 시 이전 blob URL 해제 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      if (pendingUrl) URL.revokeObjectURL(pendingUrl)
+    }
+  }, [pendingUrl])
+
   // 미리보기 소스
-  const previewSrc = pendingFile
-    ? URL.createObjectURL(pendingFile)
-    : value
+  const previewSrc = pendingUrl ?? value
 
   return (
     <div className="flex flex-col gap-2">

@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { logRfqEvent } from '@/lib/rfq/events'
-import { calcValidUntil, formatKRW, formatDate } from '@/lib/utils/format'
+import { calcValidUntil, formatKRW, formatDate, toSafeInt } from '@/lib/utils/format'
 import { sendEmail } from '@/lib/email/send'
 import { getDealerEmailForRfq, getSiteUrl } from '@/lib/email/helpers'
 import QuoteSentToDealerEmail from '@/components/emails/QuoteSentToDealerEmail'
@@ -33,17 +33,26 @@ function revalidateQuotePaths(rfqId: string) {
 function extractQuoteData(formData: FormData) {
   const specJsonStr = formData.get('spec_json') as string
   const proposedSpec = formData.get('proposed_spec') as string | null
-  const unitPrice = Number(formData.get('unit_price'))
-  const quantity = Number(formData.get('quantity'))
   const vatIncluded = formData.get('vat_included') === 'true'
-  const leadTimeDays = Number(formData.get('lead_time_days') || '7')
-  const validDays = Number(formData.get('valid_days') || '7')
   const adminMemo = formData.get('admin_memo') as string | null
 
-  if (!unitPrice || unitPrice <= 0) throw new Error('단가를 입력해주세요.')
-  if (!quantity || quantity < 1) throw new Error('수량을 입력해주세요.')
+  // 숫자 필드 안전 파싱 (NaN/소수/범위밖이면 null → 검증 실패 처리)
+  const unitPrice = toSafeInt(formData.get('unit_price'), { min: 0 })
+  const quantity = toSafeInt(formData.get('quantity'), { min: 1 })
+  const leadTimeDays = toSafeInt(formData.get('lead_time_days') || '7', { min: 1 })
+  const validDays = toSafeInt(formData.get('valid_days') || '7', { min: 1, max: 365 })
 
-  const specJson = JSON.parse(specJsonStr || '{}')
+  if (unitPrice === null) throw new Error('단가를 올바르게 입력해주세요.')
+  if (quantity === null) throw new Error('수량을 올바르게 입력해주세요.')
+  if (leadTimeDays === null) throw new Error('납기(영업일)를 올바르게 입력해주세요.')
+  if (validDays === null) throw new Error('견적 유효기간(일)을 올바르게 입력해주세요.')
+
+  let specJson: unknown
+  try {
+    specJson = JSON.parse(specJsonStr || '{}')
+  } catch {
+    throw new Error('사양 정보 형식이 올바르지 않습니다.')
+  }
   const totalAmount = unitPrice * quantity
 
   return {
@@ -77,15 +86,18 @@ export async function saveQuoteDraft(
     .single()
 
   if (!rfq) throw new Error('견적 요청을 찾을 수 없습니다.')
+  if (!['submitted', 'quoted'].includes(rfq.status)) {
+    throw new Error('이미 진행된 견적 요청입니다.')
+  }
 
   const d = extractQuoteData(formData)
 
-  // 기존 quote 있는지 확인
+  // 기존 quote 있는지 확인 (0건/2건 이상이어도 에러 없이 처리)
   const { data: existing } = await supabase
     .from('quotes')
     .select('id')
     .eq('rfq_id', rfqId)
-    .single()
+    .maybeSingle()
 
   let quoteId: string
 
@@ -167,15 +179,18 @@ export async function sendQuote(
     .single()
 
   if (!rfq) throw new Error('견적 요청을 찾을 수 없습니다.')
+  if (!['submitted', 'quoted'].includes(rfq.status)) {
+    throw new Error('이미 진행된 견적 요청입니다.')
+  }
 
   const d = extractQuoteData(formData)
 
-  // 기존 quote 있는지 확인
+  // 기존 quote 있는지 확인 (0건/2건 이상이어도 에러 없이 처리)
   const { data: existing } = await supabase
     .from('quotes')
     .select('id, status')
     .eq('rfq_id', rfqId)
-    .single()
+    .maybeSingle()
 
   const isRevise = existing?.status === 'sent'
   let quoteId: string
@@ -225,11 +240,16 @@ export async function sendQuote(
     quoteId = newQuote.id
   }
 
-  // RFQ 상태를 quoted로 전환
-  await supabase
+  // RFQ 상태를 quoted로 전환 (조회 시점 상태와 동일할 때만 — CAS)
+  const { data: rfqUpdated, error: rfqUpdateError } = await supabase
     .from('quote_requests')
     .update({ status: 'quoted', updated_at: new Date().toISOString() })
     .eq('id', rfqId)
+    .eq('status', rfq.status)
+    .select('id')
+
+  if (rfqUpdateError) throw new Error('견적 요청 상태 갱신 실패: ' + rfqUpdateError.message)
+  if (!rfqUpdated?.length) throw new Error('이미 진행된 견적 요청입니다. 새로고침 후 다시 확인해주세요.')
 
   await logRfqEvent({
     rfqId,

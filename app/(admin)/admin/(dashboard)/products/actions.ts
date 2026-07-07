@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
+import { toSafeInt } from '@/lib/utils/format'
 import type { StandardPcSpec } from '@/types/database'
 
 export type ActionResult = { error?: string }
@@ -47,10 +48,7 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
 
   if (fetchError) return { error: '제품 조회에 실패했습니다: ' + fetchError.message }
 
-  // 2. Storage에서 이미지 삭제
-  await deleteStorageFiles(supabase, product.thumbnail_urls ?? [], product.detail_image_url)
-
-  // 3. DB에서 제품 삭제
+  // 2. DB에서 제품 삭제 (Storage 삭제보다 먼저 수행하여 실패 시 이미지 참조가 고아가 되지 않게 함)
   const { error } = await supabase.from('standard_pcs').delete().eq('id', id)
 
   if (error) {
@@ -61,6 +59,9 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
     return { error: '삭제에 실패했습니다: ' + error.message }
   }
 
+  // 3. DB 삭제 성공 후 Storage 이미지 삭제
+  await deleteStorageFiles(supabase, product.thumbnail_urls ?? [], product.detail_image_url)
+
   revalidatePath('/admin/products')
   return {}
 }
@@ -70,9 +71,19 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   await requireAdmin()
   const supabase = await createClient()
 
-  const specJson = JSON.parse(formData.get('spec_json') as string) as StandardPcSpec
+  let specJson: StandardPcSpec
+  try {
+    specJson = JSON.parse(formData.get('spec_json') as string) as StandardPcSpec
+  } catch {
+    return { error: '사양 정보 형식이 올바르지 않습니다.' }
+  }
   const thumbnailUrls = JSON.parse(formData.get('thumbnail_urls') as string) as string[]
   const detailImageUrl = formData.get('detail_image_url') as string | null
+
+  const salePrice = toSafeInt(formData.get('sale_price'), { min: 0 })
+  const leadTimeDays = toSafeInt(formData.get('lead_time_days'), { min: 0 })
+  if (salePrice === null) return { error: '판매가를 올바르게 입력해주세요.' }
+  if (leadTimeDays === null) return { error: '납기(영업일)를 올바르게 입력해주세요.' }
 
   const { error } = await supabase.from('standard_pcs').insert({
     sku: formData.get('sku') as string,
@@ -82,9 +93,9 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     spec_json: specJson,
     thumbnail_urls: thumbnailUrls,
     detail_image_url: detailImageUrl || null,
-    sale_price: parseInt(formData.get('sale_price') as string, 10),
+    sale_price: salePrice,
     stock_status: formData.get('stock_status') as string,
-    lead_time_days: parseInt(formData.get('lead_time_days') as string, 10),
+    lead_time_days: leadTimeDays,
     is_active: formData.get('is_active') === 'true',
   })
 
@@ -102,15 +113,23 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
   await requireAdmin()
   const supabase = await createClient()
 
-  // 삭제 대상 기존 이미지 처리
+  // 삭제 대상 기존 이미지 처리 (Storage 삭제는 DB 수정 성공 후 수행)
   const removedThumbnails = JSON.parse(formData.get('removed_thumbnails') as string || '[]') as string[]
   const removedDetail = formData.get('removed_detail') as string | null
 
-  await deleteStorageFiles(supabase, removedThumbnails, removedDetail)
-
-  const specJson = JSON.parse(formData.get('spec_json') as string) as StandardPcSpec
+  let specJson: StandardPcSpec
+  try {
+    specJson = JSON.parse(formData.get('spec_json') as string) as StandardPcSpec
+  } catch {
+    return { error: '사양 정보 형식이 올바르지 않습니다.' }
+  }
   const thumbnailUrls = JSON.parse(formData.get('thumbnail_urls') as string) as string[]
   const detailImageUrl = formData.get('detail_image_url') as string | null
+
+  const salePrice = toSafeInt(formData.get('sale_price'), { min: 0 })
+  const leadTimeDays = toSafeInt(formData.get('lead_time_days'), { min: 0 })
+  if (salePrice === null) return { error: '판매가를 올바르게 입력해주세요.' }
+  if (leadTimeDays === null) return { error: '납기(영업일)를 올바르게 입력해주세요.' }
 
   const { error } = await supabase
     .from('standard_pcs')
@@ -122,9 +141,9 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
       spec_json: specJson,
       thumbnail_urls: thumbnailUrls,
       detail_image_url: detailImageUrl || null,
-      sale_price: parseInt(formData.get('sale_price') as string, 10),
+      sale_price: salePrice,
       stock_status: formData.get('stock_status') as string,
-      lead_time_days: parseInt(formData.get('lead_time_days') as string, 10),
+      lead_time_days: leadTimeDays,
       is_active: formData.get('is_active') === 'true',
     })
     .eq('id', id)
@@ -133,6 +152,9 @@ export async function updateProduct(id: string, formData: FormData): Promise<Act
     if (error.code === '23505') return { error: '이미 사용 중인 SKU입니다.' }
     return { error: '수정에 실패했습니다: ' + error.message }
   }
+
+  // DB 수정 성공 후 제거 대상 Storage 이미지 삭제 (실패 시 이미지 참조 고아 방지)
+  await deleteStorageFiles(supabase, removedThumbnails, removedDetail)
 
   revalidatePath('/admin/products')
   return {}

@@ -23,25 +23,23 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Supabase가 URL 해시의 토큰으로 세션을 설정할 때까지 대기
+    // 비밀번호 재설정 링크로 진입한 경우에만(PASSWORD_RECOVERY 이벤트) 폼을 활성화한다.
+    // 일반 로그인 세션만으로는 활성화하지 않는다 (복구 토큰 없는 비밀번호 변경 차단).
     const supabase = createClient()
-    supabase.auth.onAuthStateChange((event) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setReady(true)
       }
     })
-    // 이미 세션이 있는 경우 (토큰 교환 완료)
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true)
-    })
+    return () => sub.subscription.unsubscribe()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (password.length < 6) {
-      setError('비밀번호는 6자 이상이어야 합니다.')
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.')
       return
     }
     if (password !== confirm) {
@@ -123,9 +121,9 @@ export default function ResetPasswordPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="6자 이상"
+                placeholder="8자 이상"
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
             <div className="flex flex-col gap-2">

@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { formatKRW, partTypeLabel, conditionGradeLabel } from '@/lib/utils/format'
+import { formatKRW, partTypeLabel, conditionGradeLabel, sanitizeSearch } from '@/lib/utils/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,8 +33,9 @@ export default async function RefurbPage({ searchParams }: PageProps) {
     .order('updated_at', { ascending: false })
 
   // 검색: 부품명 또는 SKU 부분일치
-  if (q) {
-    query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+  const safeQ = sanitizeSearch(q)
+  if (safeQ) {
+    query = query.or(`name.ilike.%${safeQ}%,sku.ilike.%${safeQ}%`)
   }
 
   // 부품 종류 필터

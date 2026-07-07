@@ -7,7 +7,7 @@
 import { useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 
 export default function ProductFilters() {
@@ -54,24 +54,10 @@ export default function ProductFilters() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">전체</SelectItem>
-          <SelectGroup>
-            <SelectLabel>iPC Business</SelectLabel>
-            <SelectItem value="business-entry">Entry</SelectItem>
-            <SelectItem value="business-standard">Standard</SelectItem>
-            <SelectItem value="business-advance">Advance</SelectItem>
-          </SelectGroup>
-          <SelectGroup>
-            <SelectLabel>iPC Pro</SelectLabel>
-            <SelectItem value="pro-creator">Creator</SelectItem>
-            <SelectItem value="pro-engineer">Engineer</SelectItem>
-            <SelectItem value="pro-developer">Developer</SelectItem>
-          </SelectGroup>
-          <SelectGroup>
-            <SelectLabel>iPC Master</SelectLabel>
-            <SelectItem value="master-researcher">Researcher</SelectItem>
-            <SelectItem value="master-director">Director</SelectItem>
-            <SelectItem value="master-analyst">Analyst</SelectItem>
-          </SelectGroup>
+          <SelectItem value="business">iPC Business</SelectItem>
+          <SelectItem value="pro">iPC Pro</SelectItem>
+          <SelectItem value="master">iPC Master</SelectItem>
+          <SelectItem value="aipc">iPC AI</SelectItem>
         </SelectContent>
       </Select>
 

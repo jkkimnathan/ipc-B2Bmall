@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { formatBusinessNo, dealerStatusLabel, formatDate } from '@/lib/utils/format'
+import { formatBusinessNo, dealerStatusLabel, formatDate, sanitizeSearch } from '@/lib/utils/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -40,9 +40,10 @@ export default async function DealersPage({ searchParams }: PageProps) {
   }
 
   // 검색
-  if (q) {
+  const safeQ = sanitizeSearch(q)
+  if (safeQ) {
     query = query.or(
-      `company_name.ilike.%${q}%,business_no.ilike.%${q}%,contact_name.ilike.%${q}%`
+      `company_name.ilike.%${safeQ}%,business_no.ilike.%${safeQ}%,contact_name.ilike.%${safeQ}%`
     )
   }
 

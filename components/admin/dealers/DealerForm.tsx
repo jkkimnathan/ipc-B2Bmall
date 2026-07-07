@@ -99,10 +99,9 @@ export default function DealerForm({ mode, initialData }: DealerFormProps) {
 
         if (upErr) throw new Error('사업자등록증 업로드 실패: ' + upErr.message)
 
-        const { data: urlData } = supabase.storage
-          .from('dealer-documents')
-          .getPublicUrl(path)
-        finalCertUrl = urlData.publicUrl
+        // 비공개 버킷이므로 공개 URL이 아닌 스토리지 경로(path)를 저장한다.
+        // 상세 페이지에서 createSignedUrl(path)로 서명 URL을 발급한다.
+        finalCertUrl = path
       }
 
       // FormData 구성

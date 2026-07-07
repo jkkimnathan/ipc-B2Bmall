@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/send'
-import { formatDateTime } from '@/lib/utils/format'
+import { formatDateTime, isValidEmail } from '@/lib/utils/format'
 import TestEmail from '@/components/emails/TestEmail'
 
 const SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
@@ -34,9 +34,23 @@ export async function updateNotificationSettings(formData: FormData) {
   for (const key of booleanKeys) {
     updates[key] = formData.get(key) === 'on'
   }
-  updates.admin_notification_emails = (formData.get('admin_notification_emails') as string)?.trim() || null
+  // 알림 수신 이메일(쉼표 구분) 검증
+  const adminEmailsRaw = (formData.get('admin_notification_emails') as string)?.trim() || ''
+  if (adminEmailsRaw) {
+    const emails = adminEmailsRaw.split(',').map((e) => e.trim()).filter(Boolean)
+    for (const e of emails) {
+      if (!isValidEmail(e)) throw new Error(`알림 수신 이메일 주소가 올바르지 않습니다: ${e}`)
+    }
+  }
+  updates.admin_notification_emails = adminEmailsRaw || null
+
+  // 발신자 이메일 검증 (비어있으면 기본값 사용)
+  const senderEmailRaw = (formData.get('sender_email') as string)?.trim() || ''
+  if (senderEmailRaw && !isValidEmail(senderEmailRaw)) {
+    throw new Error('발신자 이메일 주소가 올바르지 않습니다.')
+  }
   updates.sender_name = (formData.get('sender_name') as string)?.trim() || 'iPC Mall'
-  updates.sender_email = (formData.get('sender_email') as string)?.trim() || 'noreply@ipcb2bmall.com'
+  updates.sender_email = senderEmailRaw || 'noreply@ipcb2bmall.com'
 
   // upsert
   const { error } = await supabase

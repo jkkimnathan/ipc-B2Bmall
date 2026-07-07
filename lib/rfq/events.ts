@@ -1,7 +1,7 @@
 /**
  * RFQ 이벤트(감사로그) 로깅 헬퍼 — 서버 사이드 전용
  */
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { RfqEventType, ActorType } from '@/types/database'
 
 interface LogRfqEventParams {
@@ -18,8 +18,12 @@ interface LogRfqEventParams {
   isVisibleToDealer?: boolean
 }
 
+/**
+ * rfq_events 테이블에 이벤트 한 건을 기록한다.
+ * 감사 로그이므로 위조 방지를 위해 service_role 클라이언트로만 기록한다.
+ */
 export async function logRfqEvent(params: LogRfqEventParams): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { error } = await supabase.from('rfq_events').insert({
     rfq_id: params.rfqId,

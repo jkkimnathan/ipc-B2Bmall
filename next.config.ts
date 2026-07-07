@@ -45,6 +45,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // 서버 액션 요청 본문 크기 제한 (사업자등록증 최대 10MB 업로드 대응)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '11mb',
+    },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

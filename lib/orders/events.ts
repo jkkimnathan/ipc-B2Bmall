@@ -6,7 +6,7 @@
  *
  * 라벨/아이콘/색상 등 표시 유틸은 event-utils.ts에서 import할 것.
  */
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { OrderEventType, ActorType } from '@/types/database'
 
 interface LogOrderEventParams {
@@ -22,9 +22,13 @@ interface LogOrderEventParams {
   isVisibleToDealer?: boolean
 }
 
-/** order_events 테이블에 이벤트 한 건을 기록한다. */
+/**
+ * order_events 테이블에 이벤트 한 건을 기록한다.
+ * 감사 로그이므로 위조 방지를 위해 service_role 클라이언트로만 기록한다.
+ * (거래처의 직접 INSERT 정책은 제거됨 — 018 마이그레이션 참조)
+ */
 export async function logOrderEvent(params: LogOrderEventParams): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { error } = await supabase.from('order_events').insert({
     order_id: params.orderId,

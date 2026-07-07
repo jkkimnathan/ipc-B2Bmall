@@ -61,7 +61,8 @@ export async function approveOrder(orderId: string, shipDate: string, memo?: str
 
   if (!shipDate) throw new Error('출고 예정일을 입력해주세요.')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 승인 (동시 처리 방지)
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({
       status: 'approved',
@@ -70,15 +71,18 @@ export async function approveOrder(orderId: string, shipDate: string, memo?: str
       admin_memo: memo?.trim() || order.admin_memo,
     })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('승인 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   await logOrderEvent({
     orderId,
     eventType: 'approved',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'approved',
     message: `승인 완료. 출고 예정일 ${shipDate}${memo ? ` — ${memo}` : ''}`,
@@ -138,14 +142,17 @@ export async function rejectOrder(orderId: string, reason: string) {
   if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
-  await restoreRefurbStockForOrder(orderId)
+  const restored = await restoreRefurbStockForOrder(orderId)
+  if (!restored) {
+    console.error('[rejectOrder] 리퍼 재고 복원 실패 — 수동 조정 필요:', { orderId })
+  }
 
   await logOrderEvent({
     orderId,
     eventType: 'rejected',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'rejected',
     message: `반려 사유: ${reason.trim()}`,
@@ -184,19 +191,23 @@ export async function rejectOrder(orderId: string, reason: string) {
 export async function startProduction(orderId: string) {
   const { admin, supabase, order } = await getOrderAndValidate(orderId, 'in_production')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 전환 (동시 처리 방지)
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({ status: 'in_production' })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('상태 변경 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   await logOrderEvent({
     orderId,
     eventType: 'in_production',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'in_production',
     message: '생산을 시작합니다.',
@@ -213,22 +224,26 @@ export async function startProduction(orderId: string) {
 export async function markShipped(orderId: string, memo?: string) {
   const { admin, supabase, order } = await getOrderAndValidate(orderId, 'shipped')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 전환 (동시 처리 방지)
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({
       status: 'shipped',
       shipped_at: new Date().toISOString(),
     })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('상태 변경 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   await logOrderEvent({
     orderId,
     eventType: 'shipped',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'shipped',
     message: memo?.trim() || '출고가 완료되었습니다.',
@@ -267,19 +282,23 @@ export async function markShipped(orderId: string, memo?: string) {
 export async function completeOrder(orderId: string) {
   const { admin, supabase, order } = await getOrderAndValidate(orderId, 'completed')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): 조회 시점 상태와 동일할 때만 전환 (동시 처리 방지)
+  const { data: updated, error } = await supabase
     .from('orders')
     .update({ status: 'completed' })
     .eq('id', orderId)
+    .eq('status', order.status)
+    .select('id')
 
   if (error) throw new Error('상태 변경 실패: ' + error.message)
+  if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   await logOrderEvent({
     orderId,
     eventType: 'completed',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'completed',
     message: '거래가 완료되었습니다.',
@@ -313,14 +332,17 @@ export async function adminCancelOrder(orderId: string, reason: string) {
   if (!updated?.length) throw new Error('이미 처리된 발주입니다. 새로고침 후 다시 확인해주세요.')
 
   // 리퍼 부품 재고 복원 (전환에 성공한 요청만 도달)
-  await restoreRefurbStockForOrder(orderId)
+  const restored = await restoreRefurbStockForOrder(orderId)
+  if (!restored) {
+    console.error('[adminCancelOrder] 리퍼 재고 복원 실패 — 수동 조정 필요:', { orderId })
+  }
 
   await logOrderEvent({
     orderId,
     eventType: 'admin_canceled',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     fromStatus: order.status,
     toStatus: 'canceled',
     message: `관리자 취소: ${reason.trim()}`,
@@ -367,7 +389,7 @@ export async function setExpectedShipDate(orderId: string, date: string) {
     eventType: 'ship_date_set',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     message: oldDate
       ? `출고 예정일 변경: ${oldDate} → ${date}`
       : `출고 예정일 지정: ${date}`,
@@ -406,7 +428,7 @@ export async function saveAdminMemo(orderId: string, memo: string) {
     eventType: 'admin_memo',
     actorType: 'admin',
     actorId: admin.id,
-    actorName: admin.email ?? '관리자',
+    actorName: '관리자',
     message: memo.trim() || '(메모 삭제)',
     isVisibleToDealer: false, // 내부 메모는 거래처에 비공개
   })

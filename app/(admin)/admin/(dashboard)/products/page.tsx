@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { formatKRW, categoryLabel, stockStatusLabel } from '@/lib/utils/format'
+import { formatKRW, categoryLabel, stockStatusLabel, sanitizeSearch } from '@/lib/utils/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,8 +33,9 @@ export default async function ProductsPage({ searchParams }: PageProps) {
     .order('updated_at', { ascending: false })
 
   // 검색: PC명 또는 SKU 부분일치
-  if (q) {
-    query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+  const safeQ = sanitizeSearch(q)
+  if (safeQ) {
+    query = query.or(`name.ilike.%${safeQ}%,sku.ilike.%${safeQ}%`)
   }
 
   // 카테고리 필터

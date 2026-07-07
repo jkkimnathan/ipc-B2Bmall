@@ -6,7 +6,9 @@
 import { revalidatePath } from 'next/cache'
 import { requireDealer } from '@/lib/auth/dealer'
 import { createClient } from '@/lib/supabase/server'
-import { canEditRfq, generateRfqNo, formatDateTime, purposeLabel } from '@/lib/utils/format'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { canEditRfq, generateRfqNo, formatDateTime, purposeLabel, toSafeInt } from '@/lib/utils/format'
+import { generateOrderNo } from '@/lib/orders/orderNo'
 import { logRfqEvent } from '@/lib/rfq/events'
 import { logOrderEvent } from '@/lib/orders/events'
 import { isQuoteExpired } from '@/lib/rfq/expiry'
@@ -25,8 +27,8 @@ export async function requestQuote(formData: FormData): Promise<{
 
   const title = formData.get('title') as string
   const purpose = formData.get('purpose') as string
-  const quantity = Number(formData.get('quantity'))
-  const budgetPerUnit = formData.get('budget_per_unit') as string
+  const quantity = toSafeInt(formData.get('quantity'), { min: 1, max: 100000 })
+  const budgetPerUnitRaw = (formData.get('budget_per_unit') as string | null)?.trim() || ''
   const desiredShipDate = formData.get('desired_ship_date') as string | null
   const requirements = formData.get('requirements') as string | null
   const specJsonStr = formData.get('spec_json') as string
@@ -36,14 +38,23 @@ export async function requestQuote(formData: FormData): Promise<{
   // 유효성 검증
   if (!title?.trim()) throw new Error('제목을 입력해주세요.')
   if (!purpose) throw new Error('용도를 선택해주세요.')
-  if (!quantity || quantity < 1) throw new Error('수량을 1 이상 입력해주세요.')
+  if (quantity === null) throw new Error('수량을 1 이상 입력해주세요.')
   if (!addressId) throw new Error('배송지를 선택해주세요.')
 
+  const budgetPerUnit = budgetPerUnitRaw ? toSafeInt(budgetPerUnitRaw, { min: 0 }) : null
+  if (budgetPerUnitRaw && budgetPerUnit === null) throw new Error('예산 금액이 올바르지 않습니다.')
+
   // spec_json 파싱 + 최소 1개 슬롯 입력 확인
-  const specJson = JSON.parse(specJsonStr || '{}')
+  let specJson: Record<string, { name?: string; qty?: number } | { name: string }[] | undefined>
+  try {
+    specJson = JSON.parse(specJsonStr || '{}')
+  } catch {
+    throw new Error('사양 정보 형식이 올바르지 않습니다.')
+  }
   const fixedKeys = ['cpu', 'mb', 'gpu', 'cooler', 'ram', 'ssd', 'hdd', 'case', 'psu', 'os', 'as']
-  const hasSpec = fixedKeys.some((k) => specJson[k]?.name && specJson[k]?.qty > 0) ||
-    (specJson.etc?.length > 0 && specJson.etc.some((e: { name: string }) => e.name))
+  const spec = specJson as Record<string, { name?: string; qty?: number }> & { etc?: { name: string }[] }
+  const hasSpec = fixedKeys.some((k) => spec[k]?.name && (spec[k]?.qty ?? 0) > 0) ||
+    ((spec.etc?.length ?? 0) > 0 && (spec.etc ?? []).some((e) => e.name))
   if (!hasSpec) throw new Error('구성 요구사항에서 최소 1개 항목을 입력해주세요.')
 
   // 배송지 조회
@@ -56,14 +67,13 @@ export async function requestQuote(formData: FormData): Promise<{
 
   if (!address) throw new Error('유효하지 않은 배송지입니다.')
 
-  // 첨부파일 URL 배열
-  const attachmentUrls: string[] = attachmentUrlsStr
-    ? JSON.parse(attachmentUrlsStr)
-    : []
+  // 첨부파일 경로 배열 (본인 거래처 폴더 경로만 허용)
+  const attachmentUrls = parseAttachmentPaths(attachmentUrlsStr, session.dealer.id)
 
   const rfqNo = generateRfqNo()
+  const admin = createAdminClient()
 
-  const { data: rfq, error } = await supabase
+  const { data: rfq, error } = await admin
     .from('quote_requests')
     .insert({
       rfq_no: rfqNo,
@@ -72,7 +82,7 @@ export async function requestQuote(formData: FormData): Promise<{
       title: title.trim(),
       purpose,
       quantity,
-      budget_per_unit: budgetPerUnit ? Number(budgetPerUnit) : null,
+      budget_per_unit: budgetPerUnit,
       desired_ship_date: desiredShipDate || null,
       requirements: requirements?.trim() || '',
       spec_json: specJson,
@@ -157,8 +167,8 @@ export async function updateQuoteRequest(rfqId: string, formData: FormData) {
 
   const title = formData.get('title') as string
   const purpose = formData.get('purpose') as string
-  const quantity = Number(formData.get('quantity'))
-  const budgetPerUnit = formData.get('budget_per_unit') as string
+  const quantity = toSafeInt(formData.get('quantity'), { min: 1, max: 100000 })
+  const budgetPerUnitRaw = (formData.get('budget_per_unit') as string | null)?.trim() || ''
   const desiredShipDate = formData.get('desired_ship_date') as string | null
   const requirements = formData.get('requirements') as string | null
   const specJsonStr = formData.get('spec_json') as string
@@ -167,10 +177,18 @@ export async function updateQuoteRequest(rfqId: string, formData: FormData) {
 
   if (!title?.trim()) throw new Error('제목을 입력해주세요.')
   if (!purpose) throw new Error('용도를 선택해주세요.')
-  if (!quantity || quantity < 1) throw new Error('수량을 1 이상 입력해주세요.')
+  if (quantity === null) throw new Error('수량을 1 이상 입력해주세요.')
   if (!addressId) throw new Error('배송지를 선택해주세요.')
 
-  const specJson = JSON.parse(specJsonStr || '{}')
+  const budgetPerUnit = budgetPerUnitRaw ? toSafeInt(budgetPerUnitRaw, { min: 0 }) : null
+  if (budgetPerUnitRaw && budgetPerUnit === null) throw new Error('예산 금액이 올바르지 않습니다.')
+
+  let specJson: unknown
+  try {
+    specJson = JSON.parse(specJsonStr || '{}')
+  } catch {
+    throw new Error('사양 정보 형식이 올바르지 않습니다.')
+  }
 
   // 배송지 조회
   const { data: address } = await supabase
@@ -182,28 +200,26 @@ export async function updateQuoteRequest(rfqId: string, formData: FormData) {
 
   if (!address) throw new Error('유효하지 않은 배송지입니다.')
 
-  const newAttachmentUrls: string[] = attachmentUrlsStr
-    ? JSON.parse(attachmentUrlsStr)
-    : []
+  const newAttachmentUrls = parseAttachmentPaths(attachmentUrlsStr, session.dealer.id)
+  const admin = createAdminClient()
 
-  // 삭제된 첨부파일은 Storage에서도 제거
+  // 삭제된 첨부파일은 Storage에서도 제거 (service_role)
   const oldUrls = (rfq.attachment_urls as string[]) ?? []
   const removedUrls = oldUrls.filter((u) => !newAttachmentUrls.includes(u))
   for (const url of removedUrls) {
-    // URL에서 버킷 내 경로 추출
     const path = extractStoragePath(url)
     if (path) {
-      await supabase.storage.from('rfq-attachments').remove([path])
+      await admin.storage.from('rfq-attachments').remove([path])
     }
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('quote_requests')
     .update({
       title: title.trim(),
       purpose,
       quantity,
-      budget_per_unit: budgetPerUnit ? Number(budgetPerUnit) : null,
+      budget_per_unit: budgetPerUnit,
       desired_ship_date: desiredShipDate || null,
       requirements: requirements?.trim() || '',
       spec_json: specJson,
@@ -252,12 +268,17 @@ export async function cancelQuoteRequest(rfqId: string) {
   if (!rfq || rfq.dealer_id !== session.dealer.id) throw new Error('권한이 없습니다.')
   if (!canEditRfq(rfq)) throw new Error('취소할 수 없는 상태입니다.')
 
-  const { error } = await supabase
+  // 조건부 전환(CAS): submitted 상태일 때만 취소 (service_role)
+  const admin = createAdminClient()
+  const { data: canceled, error } = await admin
     .from('quote_requests')
     .update({ status: 'canceled', updated_at: new Date().toISOString() })
     .eq('id', rfqId)
+    .eq('status', 'submitted')
+    .select('id')
 
   if (error) throw new Error('취소 실패: ' + error.message)
+  if (!canceled?.length) throw new Error('이미 처리된 견적 요청입니다.')
 
   await logRfqEvent({
     rfqId,
@@ -275,29 +296,39 @@ export async function cancelQuoteRequest(rfqId: string) {
   revalidatePath(`/dealer/quotes/${rfqId}`)
 }
 
-/** Storage URL에서 버킷 내부 경로 추출 */
-function extractStoragePath(url: string): string | null {
-  // /storage/v1/object/public/rfq-attachments/path/file.pdf
+/** 저장된 값(경로 또는 과거 전체 URL)에서 rfq-attachments 버킷 내부 경로 추출 */
+function extractStoragePath(value: string): string | null {
   const marker = '/rfq-attachments/'
-  const idx = url.indexOf(marker)
-  if (idx === -1) return null
-  return url.slice(idx + marker.length)
+  const idx = value.indexOf(marker)
+  if (idx !== -1) return value.slice(idx + marker.length)
+  // 전체 URL 이 아니면 이미 경로로 간주
+  return value || null
 }
 
-// ============================================================
-// 발주번호 생성 (checkout/actions.ts와 동일 패턴)
-// ============================================================
+/**
+ * 클라이언트가 보낸 첨부 목록(JSON)을 파싱해 "본인 거래처 폴더" 경로만 허용한다.
+ * 과거 데이터 호환을 위해 전체 URL 도 경로로 정규화한 뒤 접두어를 검증한다.
+ * 형식/소유권이 어긋나면 예외를 던진다.
+ */
+function parseAttachmentPaths(raw: string | null | undefined, dealerId: string): string[] {
+  if (!raw) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('첨부파일 정보 형식이 올바르지 않습니다.')
+  }
+  if (!Array.isArray(parsed)) throw new Error('첨부파일 정보 형식이 올바르지 않습니다.')
 
-async function generateOrderNo(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
-  const today = new Date()
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
-  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
-  const { count } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .gte('submitted_at', startOfDay)
-  const seq = String((count ?? 0) + 1).padStart(4, '0')
-  return `PO-${dateStr}-${seq}`
+  const prefix = `${dealerId}/`
+  return parsed.map((entry) => {
+    if (typeof entry !== 'string') throw new Error('첨부파일 경로가 올바르지 않습니다.')
+    const path = extractStoragePath(entry) ?? ''
+    if (!path.startsWith(prefix)) {
+      throw new Error('본인 거래처의 첨부파일만 등록할 수 있습니다.')
+    }
+    return path
+  })
 }
 
 // ============================================================
@@ -321,6 +352,8 @@ export async function acceptQuote(rfqId: string): Promise<{
   if (!rfq || rfq.dealer_id !== session.dealer.id) throw new Error('권한이 없습니다.')
   if (rfq.status !== 'quoted') throw new Error('수락할 수 없는 상태입니다.')
 
+  const admin = createAdminClient()
+
   // 견적서 조회
   const { data: quote } = await supabase
     .from('quotes')
@@ -333,9 +366,9 @@ export async function acceptQuote(rfqId: string): Promise<{
 
   // 유효기한 검증
   if (isQuoteExpired(quote.valid_until)) {
-    // 만료 처리
-    await supabase.from('quotes').update({ status: 'expired' }).eq('id', quote.id)
-    await supabase.from('quote_requests').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', rfqId)
+    // 만료 처리 (service_role)
+    await admin.from('quotes').update({ status: 'expired' }).eq('id', quote.id).eq('status', 'sent')
+    await admin.from('quote_requests').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', rfqId).eq('status', 'quoted')
     await logRfqEvent({
       rfqId, quoteId: quote.id,
       eventType: 'expired', actorType: 'system', actorName: '시스템',
@@ -346,10 +379,30 @@ export async function acceptQuote(rfqId: string): Promise<{
     throw new Error('견적서 유효기한이 만료되었습니다. 새 견적 요청을 제출해주세요.')
   }
 
-  // 1) 발주서 생성
-  const orderNo = await generateOrderNo(supabase)
+  // 0) 조건부 전환(CAS)으로 견적서를 선점한다. sent 상태일 때만 accepted 로 전환되며,
+  //    동시/중복 수락 요청 중 한 건만 통과하여 주문이 두 번 생성되는 것을 막는다.
+  const { data: claimed, error: claimError } = await admin
+    .from('quotes')
+    .update({ status: 'accepted', responded_at: new Date().toISOString() })
+    .eq('id', quote.id)
+    .eq('status', 'sent')
+    .select('id')
 
-  const { data: order, error: orderError } = await supabase
+  if (claimError) throw new Error('견적 수락 처리 실패: ' + claimError.message)
+  if (!claimed?.length) throw new Error('이미 처리되었거나 수락할 수 없는 견적입니다.')
+
+  // 선점 이후 실패 시 견적서를 sent 로 되돌리는 보상 함수
+  const revertClaim = async () => {
+    await admin.from('quotes').update({ status: 'sent', responded_at: null }).eq('id', quote.id)
+  }
+
+  // 1) 발주서 생성 (전역 원자적 채번, service_role)
+  const orderNo = await generateOrderNo(admin).catch(async (e) => {
+    await revertClaim()
+    throw e
+  })
+
+  const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
       order_no: orderNo,
@@ -372,10 +425,13 @@ export async function acceptQuote(rfqId: string): Promise<{
     .select('id')
     .single()
 
-  if (orderError || !order) throw new Error('발주서 생성 실패: ' + (orderError?.message ?? ''))
+  if (orderError || !order) {
+    await revertClaim()
+    throw new Error('발주서 생성 실패: ' + (orderError?.message ?? ''))
+  }
 
-  // 2) 발주 항목 생성
-  const { error: itemError } = await supabase
+  // 2) 발주 항목 생성 (실패 시 주문 삭제 + 견적서 원복)
+  const { error: itemError } = await admin
     .from('order_items')
     .insert({
       order_id: order.id,
@@ -388,23 +444,24 @@ export async function acceptQuote(rfqId: string): Promise<{
       source_quote_id: quote.id,
     })
 
-  if (itemError) throw new Error('발주 항목 생성 실패: ' + itemError.message)
+  if (itemError) {
+    await admin.from('orders').delete().eq('id', order.id)
+    await revertClaim()
+    throw new Error('발주 항목 생성 실패: ' + itemError.message)
+  }
 
-  // 3) 견적서 상태 업데이트
-  await supabase
+  // 3) 견적서에 전환된 발주 연결 (상태는 이미 accepted)
+  await admin
     .from('quotes')
-    .update({
-      status: 'accepted',
-      responded_at: new Date().toISOString(),
-      converted_order_id: order.id,
-    })
+    .update({ converted_order_id: order.id })
     .eq('id', quote.id)
 
-  // 4) RFQ 상태 업데이트
-  await supabase
+  // 4) RFQ 상태 업데이트 (CAS)
+  await admin
     .from('quote_requests')
     .update({ status: 'converted_to_order', updated_at: new Date().toISOString() })
     .eq('id', rfqId)
+    .eq('status', 'quoted')
 
   // 5) 이벤트 로깅
   await logRfqEvent({
@@ -473,6 +530,8 @@ export async function rejectQuote(rfqId: string, reason: string): Promise<void> 
   if (!rfq || rfq.dealer_id !== session.dealer.id) throw new Error('권한이 없습니다.')
   if (rfq.status !== 'quoted') throw new Error('거절할 수 없는 상태입니다.')
 
+  const admin = createAdminClient()
+
   const { data: quote } = await supabase
     .from('quotes')
     .select('id')
@@ -482,17 +541,23 @@ export async function rejectQuote(rfqId: string, reason: string): Promise<void> 
 
   if (!quote) throw new Error('발송된 견적서를 찾을 수 없습니다.')
 
-  // 견적서 상태 업데이트
-  await supabase
+  // 조건부 전환(CAS): sent 견적서를 rejected 로 전환 (service_role)
+  const { data: rejected, error: rejectErr } = await admin
     .from('quotes')
     .update({ status: 'rejected', responded_at: new Date().toISOString() })
     .eq('id', quote.id)
+    .eq('status', 'sent')
+    .select('id')
+
+  if (rejectErr) throw new Error('거절 처리 실패: ' + rejectErr.message)
+  if (!rejected?.length) throw new Error('이미 처리된 견적입니다.')
 
   // RFQ 상태 업데이트
-  await supabase
+  await admin
     .from('quote_requests')
     .update({ status: 'rejected', updated_at: new Date().toISOString() })
     .eq('id', rfqId)
+    .eq('status', 'quoted')
 
   // 이벤트 로깅
   await logRfqEvent({

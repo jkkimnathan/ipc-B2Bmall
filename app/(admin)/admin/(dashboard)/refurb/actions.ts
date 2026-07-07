@@ -14,6 +14,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
+import { toSafeInt } from '@/lib/utils/format'
 
 export type ActionResult = { error?: string }
 
@@ -46,10 +47,7 @@ export async function deleteRefurbPart(id: string): Promise<ActionResult> {
 
   if (fetchError) return { error: '부품 조회에 실패했습니다: ' + fetchError.message }
 
-  // 2. Storage에서 이미지 삭제
-  await deleteStorageFiles(supabase, part.thumbnail_urls ?? [], part.detail_image_url)
-
-  // 3. DB에서 부품 삭제
+  // 2. DB에서 부품 삭제 (Storage 삭제보다 먼저 수행하여 실패 시 이미지 참조가 고아가 되지 않게 함)
   const { error } = await supabase.from('refurb_parts').delete().eq('id', id)
 
   if (error) {
@@ -59,6 +57,9 @@ export async function deleteRefurbPart(id: string): Promise<ActionResult> {
     }
     return { error: '삭제에 실패했습니다: ' + error.message }
   }
+
+  // 3. DB 삭제 성공 후 Storage 이미지 삭제
+  await deleteStorageFiles(supabase, part.thumbnail_urls ?? [], part.detail_image_url)
 
   revalidatePath('/admin/refurb')
   return {}
@@ -73,6 +74,19 @@ export async function createRefurbPart(formData: FormData): Promise<ActionResult
   const detailImageUrl = formData.get('detail_image_url') as string | null
   const marketPriceRaw = formData.get('market_price') as string | null
 
+  // 숫자 필드 안전 파싱 (NaN/소수/음수면 null → 검증 실패 처리)
+  let marketPrice: number | null = null
+  if (marketPriceRaw && marketPriceRaw.trim() !== '') {
+    marketPrice = toSafeInt(marketPriceRaw, { min: 0 })
+    if (marketPrice === null) return { error: '신품 시세를 올바르게 입력해주세요.' }
+  }
+  const salePrice = toSafeInt(formData.get('sale_price'), { min: 0 })
+  const stockQuantity = toSafeInt(formData.get('stock_quantity'), { min: 0 })
+  const warrantyMonths = toSafeInt(formData.get('warranty_months'), { min: 0 })
+  if (salePrice === null) return { error: '판매가를 올바르게 입력해주세요.' }
+  if (stockQuantity === null) return { error: '재고 수량을 올바르게 입력해주세요.' }
+  if (warrantyMonths === null) return { error: '보증 기간(개월)을 올바르게 입력해주세요.' }
+
   const { error } = await supabase.from('refurb_parts').insert({
     sku: formData.get('sku') as string,
     name: formData.get('name') as string,
@@ -83,10 +97,10 @@ export async function createRefurbPart(formData: FormData): Promise<ActionResult
     spec_summary: (formData.get('spec_summary') as string) || null,
     thumbnail_urls: thumbnailUrls,
     detail_image_url: detailImageUrl || null,
-    market_price: marketPriceRaw ? parseInt(marketPriceRaw, 10) : null,
-    sale_price: parseInt(formData.get('sale_price') as string, 10),
-    stock_quantity: parseInt(formData.get('stock_quantity') as string, 10),
-    warranty_months: parseInt(formData.get('warranty_months') as string, 10),
+    market_price: marketPrice,
+    sale_price: salePrice,
+    stock_quantity: stockQuantity,
+    warranty_months: warrantyMonths,
     is_active: formData.get('is_active') === 'true',
   })
 
@@ -104,15 +118,26 @@ export async function updateRefurbPart(id: string, formData: FormData): Promise<
   await requireAdmin()
   const supabase = await createClient()
 
-  // 삭제 대상 기존 이미지 처리
+  // 삭제 대상 기존 이미지 처리 (Storage 삭제는 DB 수정 성공 후 수행)
   const removedThumbnails = JSON.parse(formData.get('removed_thumbnails') as string || '[]') as string[]
   const removedDetail = formData.get('removed_detail') as string | null
-
-  await deleteStorageFiles(supabase, removedThumbnails, removedDetail)
 
   const thumbnailUrls = JSON.parse(formData.get('thumbnail_urls') as string) as string[]
   const detailImageUrl = formData.get('detail_image_url') as string | null
   const marketPriceRaw = formData.get('market_price') as string | null
+
+  // 숫자 필드 안전 파싱 (NaN/소수/음수면 null → 검증 실패 처리)
+  let marketPrice: number | null = null
+  if (marketPriceRaw && marketPriceRaw.trim() !== '') {
+    marketPrice = toSafeInt(marketPriceRaw, { min: 0 })
+    if (marketPrice === null) return { error: '신품 시세를 올바르게 입력해주세요.' }
+  }
+  const salePrice = toSafeInt(formData.get('sale_price'), { min: 0 })
+  const stockQuantity = toSafeInt(formData.get('stock_quantity'), { min: 0 })
+  const warrantyMonths = toSafeInt(formData.get('warranty_months'), { min: 0 })
+  if (salePrice === null) return { error: '판매가를 올바르게 입력해주세요.' }
+  if (stockQuantity === null) return { error: '재고 수량을 올바르게 입력해주세요.' }
+  if (warrantyMonths === null) return { error: '보증 기간(개월)을 올바르게 입력해주세요.' }
 
   const { error } = await supabase
     .from('refurb_parts')
@@ -126,10 +151,10 @@ export async function updateRefurbPart(id: string, formData: FormData): Promise<
       spec_summary: (formData.get('spec_summary') as string) || null,
       thumbnail_urls: thumbnailUrls,
       detail_image_url: detailImageUrl || null,
-      market_price: marketPriceRaw ? parseInt(marketPriceRaw, 10) : null,
-      sale_price: parseInt(formData.get('sale_price') as string, 10),
-      stock_quantity: parseInt(formData.get('stock_quantity') as string, 10),
-      warranty_months: parseInt(formData.get('warranty_months') as string, 10),
+      market_price: marketPrice,
+      sale_price: salePrice,
+      stock_quantity: stockQuantity,
+      warranty_months: warrantyMonths,
       is_active: formData.get('is_active') === 'true',
     })
     .eq('id', id)
@@ -138,6 +163,9 @@ export async function updateRefurbPart(id: string, formData: FormData): Promise<
     if (error.code === '23505') return { error: '이미 사용 중인 SKU입니다.' }
     return { error: '수정에 실패했습니다: ' + error.message }
   }
+
+  // DB 수정 성공 후 제거 대상 Storage 이미지 삭제 (실패 시 이미지 참조 고아 방지)
+  await deleteStorageFiles(supabase, removedThumbnails, removedDetail)
 
   revalidatePath('/admin/refurb')
   return {}
