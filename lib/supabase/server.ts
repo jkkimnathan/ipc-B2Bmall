@@ -8,6 +8,7 @@
  *   const supabase = await createClient()
  *   const { data } = await supabase.from('orders').select('*')
  */
+import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
