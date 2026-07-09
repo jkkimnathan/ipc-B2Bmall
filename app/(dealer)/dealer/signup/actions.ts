@@ -8,6 +8,7 @@
  */
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidBusinessNo } from '@/lib/utils/format'
+import { validateCertFile } from '@/lib/uploads/certFile'
 
 interface SignupResult {
   success: boolean
@@ -70,15 +71,19 @@ export async function submitDealerSignup(formData: FormData): Promise<SignupResu
     return { success: false, error: '이미 등록된 이메일입니다.' }
   }
 
-  // 사업자등록증 업로드
+  // 사업자등록증 업로드 (서버측 형식/크기/매직바이트 검증 후)
   let certUrl: string | null = null
   if (certFile && certFile.size > 0) {
-    const ext = certFile.name.split('.').pop() ?? 'pdf'
-    const path = `signup/${Date.now()}_${businessNo}.${ext}`
+    const validated = await validateCertFile(certFile)
+    if (!validated.ok) {
+      return { success: false, error: '사업자등록증: ' + validated.error }
+    }
+
+    const path = `signup/${Date.now()}_${businessNo}.${validated.ext}`
 
     const { error: uploadError } = await supabase.storage
       .from('dealer-documents')
-      .upload(path, certFile, { contentType: certFile.type })
+      .upload(path, validated.bytes, { contentType: validated.contentType })
 
     if (uploadError) {
       return { success: false, error: '사업자등록증 업로드 실패: ' + uploadError.message }
@@ -86,6 +91,13 @@ export async function submitDealerSignup(formData: FormData): Promise<SignupResu
 
     // 비공개 버킷이므로 signed URL이 아닌 path만 저장
     certUrl = path
+  }
+
+  // 이후 DB 저장 실패 시 업로드된 파일이 고아로 남지 않도록 정리
+  const cleanupCert = async () => {
+    if (certUrl) {
+      await supabase.storage.from('dealer-documents').remove([certUrl])
+    }
   }
 
   // 거래처 INSERT (status='pending')
@@ -108,6 +120,7 @@ export async function submitDealerSignup(formData: FormData): Promise<SignupResu
     .single()
 
   if (dealerError || !newDealer) {
+    await cleanupCert()
     return { success: false, error: '가입신청 등록 실패: ' + (dealerError?.message ?? '') }
   }
 
@@ -126,6 +139,9 @@ export async function submitDealerSignup(formData: FormData): Promise<SignupResu
     })
 
   if (userError) {
+    // 거래처 행과 업로드 파일을 함께 롤백해 중간 상태를 남기지 않는다
+    await supabase.from('dealers').delete().eq('id', newDealer.id)
+    await cleanupCert()
     return { success: false, error: '담당자 등록 실패: ' + userError.message }
   }
 
