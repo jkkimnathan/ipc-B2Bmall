@@ -5,6 +5,7 @@
  * 거래처가 발주/견적을 제출할 때(=거래처 세션)에도 "관리자 알림 발송 여부"를
  * 판단하기 위해 읽어야 한다. 따라서 서비스 롤 클라이언트로 조회한다(서버 전용).
  */
+import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { NotificationSettings } from '@/types/database'
 

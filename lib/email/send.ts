@@ -4,6 +4,7 @@
  * 모든 이메일 발송은 이 함수를 통해 실행한다.
  * 발송 실패 시에도 throw하지 않고, 로그만 남긴다.
  */
+import 'server-only'
 import type { ReactElement } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getResendClient } from './client'
@@ -53,9 +54,16 @@ export async function sendEmail(options: SendEmailOptions): Promise<{
     }
 
     // 2) Resend 클라이언트 확인
+    // 운영 환경에서 키 미설정은 "조용한 스킵"이 아니라 실패로 처리해
+    // email_logs(failed)와 반환값으로 알림 누락을 즉시 드러낸다.
+    // 로컬/프리뷰 환경에서는 기존대로 skipped 처리.
     const resend = getResendClient()
     if (!resend) {
-      console.warn('[sendEmail] RESEND_API_KEY 미설정 — 이메일 발송 스킵')
+      const isProduction = process.env.VERCEL_ENV === 'production'
+        || (!process.env.VERCEL_ENV && process.env.NODE_ENV === 'production')
+      const status = isProduction ? 'failed' : 'skipped'
+
+      console[isProduction ? 'error' : 'warn']('[sendEmail] RESEND_API_KEY 미설정 — 이메일 미발송 (' + status + ')')
       for (const email of recipients) {
         await supabase.from('email_logs').insert({
           template_key: options.templateKey,
@@ -66,11 +74,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<{
           related_order_id: options.relatedOrderId ?? null,
           related_rfq_id: options.relatedRfqId ?? null,
           related_dealer_id: options.relatedDealerId ?? null,
-          status: 'skipped',
+          status,
           error_message: 'RESEND_API_KEY 미설정',
         })
       }
-      return { success: true }
+      return isProduction
+        ? { success: false, error: 'RESEND_API_KEY 미설정 — 운영 환경에서 이메일을 발송할 수 없습니다.' }
+        : { success: true }
     }
 
     // 3) 발신자 정보

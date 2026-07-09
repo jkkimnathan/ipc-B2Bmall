@@ -9,15 +9,9 @@ import { requireDealer } from '@/lib/auth/dealer'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidEmail } from '@/lib/utils/format'
+import { validateCertFile } from '@/lib/uploads/certFile'
 
 const REVALIDATE_PATH = '/dealer/mypage'
-
-// 사업자등록증 허용 형식/크기
-const CERT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
-const CERT_EXT_BY_TYPE: Record<string, string> = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf',
-}
-const CERT_MAX_BYTES = 10 * 1024 * 1024
 
 /** 거래처 연락처/주소 수정 (주소만 변경 가능) */
 export async function updateMyDealer(formData: FormData) {
@@ -49,39 +43,37 @@ export async function updateBusinessCert(formData: FormData) {
   const file = formData.get('file') as File | null
   if (!file || file.size === 0) throw new Error('파일을 선택해주세요.')
 
-  // 서버측 파일 검증 (형식/크기). contentType 은 클라이언트 값을 신뢰하지 않고
-  // 허용 목록에서 확정한다.
-  if (!CERT_ALLOWED_TYPES.includes(file.type)) {
-    throw new Error('이미지(JPG/PNG/WebP) 또는 PDF 파일만 업로드할 수 있습니다.')
-  }
-  if (file.size > CERT_MAX_BYTES) {
-    throw new Error('파일 크기는 10MB 이하만 업로드할 수 있습니다.')
-  }
-  const safeType = file.type
-  const ext = CERT_EXT_BY_TYPE[safeType]
+  // 서버측 파일 검증 (형식/크기/매직바이트) — 가입 신청과 동일한 공용 헬퍼 사용
+  const validated = await validateCertFile(file)
+  if (!validated.ok) throw new Error(validated.error)
 
-  // 기존 파일 삭제 (있으면)
-  if (session.dealer.business_cert_url) {
-    await supabase.storage
-      .from('dealer-documents')
-      .remove([session.dealer.business_cert_url])
-  }
+  const path = `certs/${session.dealer.id}/${Date.now()}.${validated.ext}`
 
-  const path = `certs/${session.dealer.id}/${Date.now()}.${ext}`
-
+  // 새 파일 먼저 업로드 → DB 갱신 → 성공 후 기존 파일 삭제
+  // (중간 실패 시 기존 등록증이 유실되지 않도록)
   const { error: uploadError } = await supabase.storage
     .from('dealer-documents')
-    .upload(path, file, { contentType: safeType })
+    .upload(path, validated.bytes, { contentType: validated.contentType })
 
   if (uploadError) throw new Error('업로드 실패: ' + uploadError.message)
 
-  // DB 업데이트
+  const previousPath = session.dealer.business_cert_url
+
   const { error } = await supabase
     .from('dealers')
     .update({ business_cert_url: path })
     .eq('id', session.dealer.id)
 
-  if (error) throw new Error('저장 실패: ' + error.message)
+  if (error) {
+    // DB 갱신 실패 시 새로 올린 파일 정리
+    await supabase.storage.from('dealer-documents').remove([path])
+    throw new Error('저장 실패: ' + error.message)
+  }
+
+  if (previousPath) {
+    await supabase.storage.from('dealer-documents').remove([previousPath])
+  }
+
   revalidatePath(REVALIDATE_PATH)
 }
 

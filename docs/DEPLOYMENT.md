@@ -27,11 +27,11 @@
 ```bash
 # Supabase CLI 사용 시
 supabase db push          # 로컬 마이그레이션을 원격에 적용
-# 또는 대시보드 SQL 편집기에서 018_security_hardening.sql 실행
+# 또는 대시보드 SQL 편집기에서 018_security_hardening.sql, 019_set_default_address.sql 실행
 ```
 
 적용 후 확인:
-- `select proname from pg_proc where proname in ('is_admin','current_dealer_id','next_doc_seq','touch_last_login');`
+- `select proname from pg_proc where proname in ('is_admin','current_dealer_id','next_doc_seq','touch_last_login','set_default_address');`
 - `select tgname from pg_trigger where tgname = 'trg_dealers_guard';`
 - 금액 컬럼 타입: `\d orders` → `total_amount bigint`.
 

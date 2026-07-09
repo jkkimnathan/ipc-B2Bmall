@@ -9,6 +9,7 @@
  *   const supabase = createAdminClient()
  *   const { data } = await supabase.from('dealers').update({ status: 'active' }).eq('id', dealerId)
  */
+import 'server-only'
 import { createClient } from '@supabase/supabase-js'
 
 export function createAdminClient() {

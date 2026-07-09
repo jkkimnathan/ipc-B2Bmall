@@ -134,31 +134,12 @@ export async function deleteAddress(id: string) {
 
 /** 기본 배송지 설정 */
 export async function setDefaultAddress(id: string) {
-  const session = await requireDealer()
+  await requireDealer()
   const supabase = await createClient()
 
-  const { data: existing } = await supabase
-    .from('dealer_addresses')
-    .select('dealer_id')
-    .eq('id', id)
-    .single()
-
-  if (!existing || existing.dealer_id !== session.dealer.id) {
-    throw new Error('권한이 없습니다.')
-  }
-
-  // 기존 기본 해제
-  await supabase
-    .from('dealer_addresses')
-    .update({ is_default: false })
-    .eq('dealer_id', session.dealer.id)
-    .eq('is_default', true)
-
-  // 새 기본 설정
-  const { error } = await supabase
-    .from('dealer_addresses')
-    .update({ is_default: true })
-    .eq('id', id)
+  // 기존 기본 해제 + 새 기본 지정을 단일 트랜잭션으로 처리 (019 RPC).
+  // 소유권 검증은 함수 내부에서 current_dealer_id() 기준으로 수행.
+  const { error } = await supabase.rpc('set_default_address', { p_address_id: id })
 
   if (error) throw new Error('설정 실패: ' + error.message)
   revalidatePath(REVALIDATE_PATH)
